@@ -92,7 +92,7 @@ export async function requestOpenai(req: NextRequest) {
       const models = [
         serverConfig.customModels,
         serverConfig.compressModel,
-        serverConfig.translateModel,
+        serverConfig.textProcessModel,
         serverConfig.ocrModel,
       ];
 

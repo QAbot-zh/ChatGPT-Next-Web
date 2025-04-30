@@ -8,6 +8,7 @@ import { useAllModelsWithCustomProviders } from "../utils/hooks";
 import { groupBy } from "lodash-es";
 import { getStoredModelConfigs, saveModelConfig } from "../utils";
 import { useState, useEffect } from "react";
+import { Model } from "../client/api";
 
 function findMatchingProvider(
   model: string,
@@ -40,6 +41,16 @@ function findMatchingProvider(
   // 4. 如果都没找到，返回原始providername
   return providername;
 }
+function isModelAvailable(
+  model: string,
+  providerName: string,
+  allModels: Model[],
+): boolean {
+  const modelInfo = allModels.find(
+    (m) => m.name === model && m.provider?.providerName === providerName,
+  );
+  return modelInfo ? modelInfo.available : false;
+}
 export function ModelConfigList(props: {
   modelConfig: ModelConfig;
   updateConfig: (updater: (config: ModelConfig) => void) => void;
@@ -53,13 +64,14 @@ export function ModelConfigList(props: {
   // let compressModelValue = compressModel ?
   //   `${compressModelName}@${compressModelProviderName}` :
   //   `${props.modelConfig.compressModel}@${props.modelConfig?.compressProviderName}`;
-  // console.log("compressModelValue", compressModelValue);
+  // console.log("[model-config] compressModelValue", compressModelValue);
 
   const accessStore = useAccessStore();
   // 创建状态变量来存储模型值
   const [chatModelValue, setChatModelValue] = useState<string>("");
   const [compressModelValue, setCompressModelValue] = useState<string>("");
-  const [translateModelValue, setTranslateModelValue] = useState<string>("");
+  const [textProcessModelValue, setTextProcessModelValue] =
+    useState<string>("");
   const [ocrModelValue, setOcrModelValue] = useState<string>("");
 
   // 在组件挂载时初始化
@@ -67,9 +79,20 @@ export function ModelConfigList(props: {
     // 获取存储的配置
     const storedConfigs = getStoredModelConfigs();
     // 处理聊天模型
+    let useStoreChatModel = false;
     if (storedConfigs.chatModel) {
       // 如果已有存储的值，使用它
-      setChatModelValue(storedConfigs.chatModel);
+      // setChatModelValue(storedConfigs.chatModel);
+      const [model, providerName] = storedConfigs.chatModel.split("@");
+      if (!isModelAvailable(model, providerName, allModels)) {
+        console.warn(
+          `chatModel ${model} with provider ${providerName} is not available.`,
+        );
+      } else {
+        useStoreChatModel = true;
+      }
+    }
+    if (useStoreChatModel) {
       const [model, providerName] = storedConfigs.chatModel.split("@");
       const matchedProviderName = findMatchingProvider(
         model,
@@ -80,6 +103,7 @@ export function ModelConfigList(props: {
         config.model = ModalConfigValidator.model(model);
         config.providerName = matchedProviderName as ServiceProvider;
       });
+      setChatModelValue(`${model}@${matchedProviderName}`);
     } else {
       // 否则使用props中的默认值
       const model = props.modelConfig.model;
@@ -95,6 +119,7 @@ export function ModelConfigList(props: {
       const value = `${model}@${matchedProviderName}`;
       setChatModelValue(value);
       saveModelConfig("chatModel", value);
+      console.log("[model-config] change chatModel: ", value);
 
       // 如果匹配的providername与原始不同，更新配置
       if (matchedProviderName !== providername) {
@@ -105,8 +130,19 @@ export function ModelConfigList(props: {
     }
 
     // 处理压缩模型
+    let useStoreCompressModel = false;
     if (storedConfigs.compressModel) {
-      setCompressModelValue(storedConfigs.compressModel);
+      // setCompressModelValue(storedConfigs.compressModel);
+      const [model, providerName] = storedConfigs.compressModel.split("@");
+      if (!isModelAvailable(model, providerName, allModels)) {
+        console.warn(
+          `compressModel ${model} with provider ${providerName} is not available.`,
+        );
+      } else {
+        useStoreCompressModel = true;
+      }
+    }
+    if (useStoreCompressModel) {
       const [model, providerName] = storedConfigs.compressModel.split("@");
       const matchedProviderName = findMatchingProvider(
         model,
@@ -117,6 +153,7 @@ export function ModelConfigList(props: {
         config.compressModel = ModalConfigValidator.model(model);
         config.compressProviderName = matchedProviderName as ServiceProvider;
       });
+      setCompressModelValue(`${model}@${matchedProviderName}`);
     } else {
       // 使用accessStore中的值或props中的默认值
       let model = props.modelConfig.compressModel;
@@ -141,6 +178,7 @@ export function ModelConfigList(props: {
       const value = `${model}@${matchedProviderName}`;
       setCompressModelValue(value);
       saveModelConfig("compressModel", value);
+      console.log("[model-config] change compressModel: ", value);
 
       // 更新配置
       props.updateConfig((config) => {
@@ -150,32 +188,48 @@ export function ModelConfigList(props: {
     }
 
     // 处理翻译模型
-    if (storedConfigs.translateModel) {
-      setTranslateModelValue(storedConfigs.translateModel);
-      const [model, providerName] = storedConfigs.translateModel.split("@");
+    let useStoreTextProcessModel = false;
+    if (storedConfigs.textProcessModel) {
+      // setTranslateModelValue(storedConfigs.translateModel);
+      const [model, providerName] = storedConfigs.textProcessModel.split("@");
+      if (!isModelAvailable(model, providerName, allModels)) {
+        console.warn(
+          `textProcessModel ${model} with provider ${providerName} is not available.`,
+        );
+      } else {
+        useStoreTextProcessModel = true;
+      }
+    }
+    if (useStoreTextProcessModel) {
+      const [model, providerName] = storedConfigs.textProcessModel.split("@");
       const matchedProviderName = findMatchingProvider(
         model,
         providerName,
         groupModels,
       );
       props.updateConfig((config) => {
-        config.translateModel = ModalConfigValidator.model(model);
-        config.translateProviderName = matchedProviderName as ServiceProvider;
+        config.textProcessModel = ModalConfigValidator.model(model);
+        config.textProcessProviderName = matchedProviderName as ServiceProvider;
       });
+      setTextProcessModelValue(`${model}@${matchedProviderName}`);
     } else {
       // 使用accessStore中的值或props中的默认值
-      let model = props.modelConfig.translateModel;
-      let providerName = props.modelConfig.translateProviderName;
+      let model = props.modelConfig.textProcessModel;
+      let providerName = props.modelConfig.textProcessProviderName;
 
       // 如果accessStore中有值，优先使用
-      if (accessStore.translateModel) {
-        const parts = accessStore.translateModel.split("@");
+      if (accessStore.textProcessModel) {
+        const parts = accessStore.textProcessModel.split("@");
         if (parts.length > 0) {
           model = parts[0];
           if (parts.length > 1) {
             providerName = parts[1] as ServiceProvider;
           }
         }
+        console.log(
+          "[model-config] accessStore textProcessModel: ",
+          accessStore.textProcessModel,
+        );
       }
       const matchedProviderName = findMatchingProvider(
         model,
@@ -183,19 +237,31 @@ export function ModelConfigList(props: {
         groupModels,
       );
       const value = `${model}@${matchedProviderName}`;
-      setTranslateModelValue(value);
-      saveModelConfig("translateModel", value);
+      setTextProcessModelValue(value);
+      saveModelConfig("textProcessModel", value);
+      console.log("[model-config] change textProcessModel: ", value);
 
       // 更新配置
       props.updateConfig((config) => {
-        config.translateModel = ModalConfigValidator.model(model);
-        config.translateProviderName = matchedProviderName as ServiceProvider;
+        config.textProcessModel = ModalConfigValidator.model(model);
+        config.textProcessProviderName = matchedProviderName as ServiceProvider;
       });
     }
 
     // 处理OCR模型
+    let useStoreOcrModel = false;
     if (storedConfigs.ocrModel) {
-      setOcrModelValue(storedConfigs.ocrModel);
+      // setOcrModelValue(storedConfigs.ocrModel);
+      const [model, providerName] = storedConfigs.ocrModel.split("@");
+      if (!isModelAvailable(model, providerName, allModels)) {
+        console.warn(
+          `ocrModel ${model} with provider ${providerName} is not available.`,
+        );
+      } else {
+        useStoreOcrModel = true;
+      }
+    }
+    if (useStoreOcrModel) {
       const [model, providerName] = storedConfigs.ocrModel.split("@");
       const matchedProviderName = findMatchingProvider(
         model,
@@ -206,6 +272,7 @@ export function ModelConfigList(props: {
         config.ocrModel = ModalConfigValidator.model(model);
         config.ocrProviderName = matchedProviderName as ServiceProvider;
       });
+      setOcrModelValue(`${model}@${matchedProviderName}`);
     } else {
       // 使用accessStore中的值或props中的默认值
       let model = props.modelConfig.ocrModel;
@@ -229,6 +296,7 @@ export function ModelConfigList(props: {
       const value = `${model}@${matchedProviderName}`;
       setOcrModelValue(value);
       saveModelConfig("ocrModel", value);
+      console.log("[model-config] change ocrModel: ", value);
 
       // 更新配置
       props.updateConfig((config) => {
@@ -301,22 +369,22 @@ export function ModelConfigList(props: {
 
       {/* 添加翻译模型选择器 */}
       <ListItem
-        title={Locale.Settings.TranslateModel.Title}
-        subTitle={Locale.Settings.TranslateModel.SubTitle}
+        title={Locale.Settings.TextProcessModel.Title}
+        subTitle={Locale.Settings.TextProcessModel.SubTitle}
       >
         <Select
-          aria-label={Locale.Settings.TranslateModel.Title}
-          value={translateModelValue}
+          aria-label={Locale.Settings.TextProcessModel.Title}
+          value={textProcessModelValue}
           align="left"
           onChange={(e) => {
             const value = e.currentTarget.value;
-            setTranslateModelValue(value);
-            saveModelConfig("translateModel", value);
+            setTextProcessModelValue(value);
+            saveModelConfig("textProcessModel", value);
 
             const [model, providerName] = value.split("@");
             props.updateConfig((config) => {
-              config.translateModel = ModalConfigValidator.model(model);
-              config.translateProviderName = providerName as ServiceProvider;
+              config.textProcessModel = ModalConfigValidator.model(model);
+              config.textProcessProviderName = providerName as ServiceProvider;
             });
           }}
         >

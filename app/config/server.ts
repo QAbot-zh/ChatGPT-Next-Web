@@ -184,7 +184,8 @@ export const getServerSideConfig = () => {
     customHello: process.env.CUSTOM_HELLO,
     UnauthorizedInfo: process.env.UNAUTHORIZED_INFO,
     compressModel: process.env.COMPRESS_MODEL,
-    translateModel: process.env.TRANSLATE_MODEL,
+    // translateModel: process.env.TRANSLATE_MODEL,
+    textProcessModel: process.env.TEXT_PROCESS_MODEL,
     ocrModel: process.env.OCR_MODEL,
     selectLabels: process.env.SELECT_LABELS,
 

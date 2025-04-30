@@ -71,7 +71,8 @@ const DEFAULT_ACCESS_STATE = {
 
   // model config
   compressModel: "" as ModelType,
-  translateModel: "" as ModelType,
+  // translateModel: "" as ModelType,
+  textProcessModel: "" as ModelType,
   ocrModel: "" as ModelType,
 
   // tts config
@@ -101,9 +102,9 @@ export const useAccessStore = createPersistStore(
       this.fetch();
       return get().compressModel;
     },
-    setTranslateModel() {
+    setTextProcessModel() {
       this.fetch();
-      return get().translateModel;
+      return get().textProcessModel;
     },
     setOcrModel() {
       this.fetch();

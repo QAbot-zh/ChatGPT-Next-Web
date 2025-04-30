@@ -51,6 +51,7 @@ import TranslateIcon from "../icons/translate.svg";
 import OcrIcon from "../icons/ocr.svg";
 import PrivacyIcon from "../icons/privacy.svg";
 import PrivacyModeIcon from "../icons/incognito.svg";
+import ImprovePromptIcon from "../icons/lightOn.svg";
 // import UploadDocIcon from "../icons/upload-doc.svg";
 import CollapseIcon from "../icons/collapse.svg";
 import ExpandIcon from "../icons/expand.svg";
@@ -82,6 +83,8 @@ import {
   isThinkingModel,
   wrapThinkingPart,
   countTokens,
+  saveModelConfig,
+  getStoredModelConfigs,
 } from "../utils";
 import { estimateTokenLengthInLLM } from "@/app/utils/token";
 
@@ -527,6 +530,12 @@ export function ChatActions(props: {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   // ocr
   const [isOCRing, setIsOCRing] = useState(false);
+  // improve prompt
+  const [isImprovingPrompt, setIsImprovingPrompt] = useState(false);
+  const [originalPromptForImproving, setOriginalPromptForImproving] = useState<
+    string | null
+  >(null);
+  const [optimizedPrompt, setOptimizedPrompt] = useState<string | null>(null);
   // privacy
   const [isPrivacying, setIsPrivacying] = useState(false);
   const [originalTextForPrivacy, setOriginalTextForPrivacy] = useState<
@@ -578,11 +587,14 @@ export function ChatActions(props: {
     showToast(Locale.Chat.InputActions.Translate.isTranslatingToast);
     //
     const modelConfig = session.mask.modelConfig;
-    let translateModel = modelConfig.translateModel;
-    let providerName = modelConfig.translateProviderName;
-    if (!providerName && access.translateModel) {
+    // let translateModel = modelConfig.translateModel;
+    // let providerName = modelConfig.translateProviderName;
+    let textProcessModel = modelConfig.textProcessModel;
+    let providerName = modelConfig.textProcessProviderName;
+
+    if (!providerName && access.textProcessModel) {
       let providerNameStr;
-      [translateModel, providerNameStr] = access.translateModel.split("@");
+      [textProcessModel, providerNameStr] = access.textProcessModel.split("@");
       providerName = providerNameStr as ServiceProvider;
     }
     try {
@@ -613,12 +625,16 @@ export function ChatActions(props: {
     api.llm.chat({
       messages: [
         {
+          role: "system",
+          content: `${Locale.Chat.InputActions.Translate.SystemPrompt}`,
+        },
+        {
           role: "user",
-          content: `${Locale.Chat.InputActions.Translate.TranslatePrompt} ${props.userInput}`,
+          content: `${Locale.Chat.InputActions.Translate.UserPrompt} ${props.userInput}`,
         },
       ],
       config: {
-        model: translateModel,
+        model: textProcessModel,
         stream: false,
       },
       onFinish(message, responseRes) {
@@ -739,6 +755,100 @@ export function ChatActions(props: {
           showToast(Locale.Chat.InputActions.OCR.FailDetectToast);
         }
         setIsOCRing(false);
+      },
+    });
+  };
+  const handleImprovePrompt = async () => {
+    if (originalPromptForImproving !== null) {
+      // 执行撤销操作
+      props.setUserInput(originalPromptForImproving);
+      setOriginalPromptForImproving(null);
+      setOptimizedPrompt(null);
+      showToast(Locale.Chat.InputActions.ImprovePrompt.UndoToast);
+      return;
+    }
+    if (props.userInput.trim() === "") {
+      showToast(Locale.Chat.InputActions.ImprovePrompt.BlankToast);
+      return;
+    }
+    setIsImprovingPrompt(true);
+    showToast(Locale.Chat.InputActions.ImprovePrompt.isImprovingToast);
+    //
+    const modelConfig = session.mask.modelConfig;
+    let textProcessModel = modelConfig.textProcessModel;
+    let providerName = modelConfig.textProcessProviderName;
+    if (!providerName && access.textProcessModel) {
+      let providerNameStr;
+      [textProcessModel, providerNameStr] = access.textProcessModel.split("@");
+      providerName = providerNameStr as ServiceProvider;
+    }
+    try {
+      const storedProvidersData = safeLocalStorage().getItem(
+        StoreKey.CustomProvider,
+      );
+      const providers = storedProvidersData
+        ? JSON.parse(storedProvidersData)
+        : [];
+      const provider = Array.isArray(providers)
+        ? providers.find((provider) => provider.name === providerName)
+        : null;
+
+      if (provider?.baseUrl && provider?.apiKey) {
+        // 使用解构赋值和可选链操作符
+        access.useCustomProvider = true;
+        access.customProvider_apiKey = provider.apiKey;
+        access.customProvider_baseUrl = provider.baseUrl;
+        access.customProvider_type = provider.type;
+      } else {
+        access.useCustomProvider = false;
+      }
+    } catch (error) {
+      console.error("Error processing custom providers:", error);
+      access.useCustomProvider = false;
+    }
+    const api: ClientApi = getClientApi(providerName);
+    api.llm.chat({
+      messages: [
+        {
+          role: "system",
+          content: `${Locale.Chat.InputActions.ImprovePrompt.SystemPrompt}`,
+        },
+        {
+          role: "user",
+          content: `${Locale.Chat.InputActions.ImprovePrompt.UserPrompt} ${props.userInput}`,
+        },
+      ],
+      config: {
+        model: textProcessModel,
+        stream: false,
+      },
+      onFinish(message, responseRes) {
+        if (responseRes?.status === 200) {
+          if (typeof message !== "string") {
+            message = message.content;
+          }
+          if (!isValidMessage(message)) {
+            showToast(
+              Locale.Chat.InputActions.ImprovePrompt.FailImprovingToast,
+            );
+            return;
+          }
+
+          let optimizedContent = message;
+          optimizedContent = optimizedContent || props.userInput; // 避免空翻译无法撤销
+
+          // 保存原始文本和翻译结果以便撤销
+          setOriginalPromptForImproving(props.userInput);
+          setOptimizedPrompt(optimizedContent);
+          props.setUserInput(optimizedContent);
+
+          showToast(
+            Locale.Chat.InputActions.ImprovePrompt.SuccessImprovingToast,
+          );
+        } else {
+          showToast(Locale.Chat.InputActions.ImprovePrompt.FailImprovingToast);
+        }
+        setIsImprovingPrompt(false);
       },
     });
   };
@@ -1298,6 +1408,21 @@ export function ChatActions(props: {
           icon={<OcrIcon />}
         />
         {/* )} */}
+
+        <ChatAction
+          onClick={handleImprovePrompt}
+          text={
+            originalPromptForImproving !== null
+              ? Locale.Chat.InputActions.ImprovePrompt.Undo
+              : isImprovingPrompt
+              ? Locale.Chat.InputActions.ImprovePrompt.isImprovingToast
+              : Locale.Chat.InputActions.ImprovePrompt.Title
+          }
+          alwaysShowText={
+            isImprovingPrompt || originalPromptForImproving !== null
+          }
+          icon={<ImprovePromptIcon />}
+        />
         <ChatAction
           onClick={handlePrivacy}
           text={
@@ -3507,9 +3632,11 @@ function ChatComponent({ modelTable }: { modelTable: Model[] }) {
 }
 
 export function Chat() {
+  console.log("Chat component rendered, ---------------------------");
   const chatStore = useChatStore();
   const session = chatStore.currentSession();
   const allModels = useAllModelsWithCustomProviders();
+  const access = useAccessStore();
 
   const modelTable = useMemo(() => {
     const filteredModels = allModels.filter((m) => m.available);
@@ -3547,13 +3674,14 @@ export function Chat() {
     if (defaultModel) {
       return [defaultModel, ...mergedModels.filter((m) => m !== defaultModel)];
     }
-
+    console.log("recalculate modelTable... ");
     return mergedModels;
   }, [allModels]);
+
   // Update session messages based on modelTable
   useEffect(() => {
     // 仅在 session 最后一条消息 id 变化时执行，即有新的消息进入队列
-
+    console.log("session.messages changed, updating displayName...");
     for (let i = 0; i < session.messages.length; i++) {
       const message = session.messages[i];
       if (message.role !== "user" && !message.displayName && message.model) {
@@ -3571,6 +3699,197 @@ export function Chat() {
     }
   }, [session.messages[session.messages.length - 1]?.id]);
 
+  // update session model
+  useEffect(() => {
+    console.log("modelTable changed, updating session model...");
+    console.log("modelTable: ", modelTable);
+    if (!modelTable || modelTable.length === 0) return;
+
+    console.log(
+      "[Chat.tsx] models: ",
+      access.defaultModel,
+      access.compressModel,
+      access.ocrModel,
+      access.textProcessModel,
+    );
+    const storedConfigs = getStoredModelConfigs();
+    console.log("[Chat.tsx] storedConfigs: ", storedConfigs);
+    console.log(
+      "[Chat.tsx] session.mask.modelConfig: ",
+      session.id,
+      session.mask.modelConfig,
+    );
+    if (!storedConfigs.chatModel) {
+      saveModelConfig("chatModel", access.defaultModel);
+      const [modelName, providerName] =
+        access.defaultModel.split(/@(?=[^@]*$)/);
+      chatStore.updateTargetSession(session, (session) => {
+        session.mask.modelConfig.model = modelName;
+        session.mask.modelConfig.providerName = providerName as ServiceProvider;
+      });
+    }
+    if (!storedConfigs.compressModel) {
+      saveModelConfig("compressModel", access.compressModel);
+      const [modelName, providerName] =
+        access.compressModel.split(/@(?=[^@]*$)/);
+      chatStore.updateTargetSession(session, (session) => {
+        session.mask.modelConfig.compressModel = modelName;
+        session.mask.modelConfig.compressProviderName =
+          providerName as ServiceProvider;
+      });
+    }
+    if (!storedConfigs.ocrModel) {
+      saveModelConfig("ocrModel", access.ocrModel);
+      const [modelName, providerName] = access.ocrModel.split(/@(?=[^@]*$)/);
+      chatStore.updateTargetSession(session, (session) => {
+        session.mask.modelConfig.ocrModel = modelName;
+        session.mask.modelConfig.ocrProviderName =
+          providerName as ServiceProvider;
+      });
+    }
+    if (!storedConfigs.textProcessModel) {
+      saveModelConfig("textProcessModel", access.textProcessModel);
+      const [modelName, providerName] =
+        access.textProcessModel.split(/@(?=[^@]*$)/);
+      chatStore.updateTargetSession(session, (session) => {
+        session.mask.modelConfig.textProcessModel = modelName;
+        session.mask.modelConfig.textProcessProviderName =
+          providerName as ServiceProvider;
+      });
+    }
+    console.log(
+      "[Chat.tsx] After, session.mask.modelConfig: ",
+      session.mask.modelConfig,
+    );
+    // 获取当前所有任务的模型配置
+    const currentConfig = {
+      chat: {
+        model: session.mask.modelConfig.model,
+        providerName: session.mask.modelConfig.providerName,
+      },
+      textProcess: {
+        model: session.mask.modelConfig.textProcessModel,
+        providerName: session.mask.modelConfig.textProcessProviderName,
+      },
+      ocr: {
+        model: session.mask.modelConfig.ocrModel,
+        providerName: session.mask.modelConfig.ocrProviderName,
+      },
+      compress: {
+        model: session.mask.modelConfig.compressModel,
+        providerName: session.mask.modelConfig.compressProviderName,
+      },
+    };
+    console.log("[Chat.tsx] currentConfig: ", currentConfig);
+
+    /**
+     * 获取任务模型 - 优先级：
+     * 1. 同名且 providerName 一致的模型
+     * 2. 同名的模型（任意提供商）
+     * 3. 首个可用模型
+     */
+    const getTaskModel = (model: string, providerName: string) => {
+      // 如果当前未设置模型名称，直接返回首个模型
+      if (!model) {
+        return modelTable.length > 0
+          ? {
+              model: modelTable[0].name,
+              providerName: modelTable[0].provider?.providerName,
+            }
+          : null;
+      }
+
+      let sameNameModel = null;
+      let firstAvailable = null;
+
+      for (const item of modelTable) {
+        // 【优先级 1】完全匹配（名称和提供商均一致）
+        if (
+          item.name === model &&
+          item.provider?.providerName === providerName
+        ) {
+          return null; // 直接返回无需修改
+        }
+
+        // 【优先级 2】记录第一个同名模型（只要名称匹配）
+        if (item.name === model && !sameNameModel) {
+          sameNameModel = item;
+        }
+
+        // 【优先级 3】记录首个可用模型（数组中第一个非空项）
+        if (!firstAvailable) {
+          firstAvailable = item;
+        }
+      }
+
+      // 根据候选结果返回
+      if (sameNameModel) {
+        return {
+          model: sameNameModel.name,
+          providerName: sameNameModel.provider?.providerName,
+        };
+      }
+
+      return firstAvailable
+        ? {
+            model: firstAvailable.name,
+            providerName: firstAvailable.provider?.providerName,
+          }
+        : null;
+    };
+
+    // 检查并更新每个任务的模型
+    Object.entries(currentConfig).forEach(([taskType, config]) => {
+      // 获取该任务可能的替代模型
+      const replacementModel = getTaskModel(config.model, config.providerName);
+
+      // 如果需要替换
+      if (replacementModel) {
+        console.log("update model for task", taskType, replacementModel);
+        switch (taskType) {
+          case "chat":
+            session.mask.modelConfig.model = replacementModel.model;
+            session.mask.modelConfig.providerName =
+              replacementModel.providerName as ServiceProvider;
+            saveModelConfig(
+              "chatModel",
+              `${replacementModel.model}@${replacementModel.providerName}`,
+            );
+            break;
+          case "textProcess":
+            session.mask.modelConfig.textProcessModel = replacementModel.model;
+            session.mask.modelConfig.textProcessProviderName =
+              replacementModel.providerName as ServiceProvider;
+            saveModelConfig(
+              "textProcessModel",
+              `${replacementModel.model}@${replacementModel.providerName}`,
+            );
+            break;
+          case "ocr":
+            session.mask.modelConfig.ocrModel = replacementModel.model;
+            session.mask.modelConfig.ocrProviderName =
+              replacementModel.providerName as ServiceProvider;
+            saveModelConfig(
+              "ocrModel",
+              `${replacementModel.model}@${replacementModel.providerName}`,
+            );
+            break;
+          case "compress":
+            session.mask.modelConfig.compressModel = replacementModel.model;
+            session.mask.modelConfig.compressProviderName =
+              replacementModel.providerName as ServiceProvider;
+            saveModelConfig(
+              "compressModel",
+              `${replacementModel.model}@${replacementModel.providerName}`,
+            );
+            break;
+          default:
+            // 非 chat 类型的任务暂不做处理
+            break;
+        }
+      }
+    });
+  }, [modelTable]);
   return (
     <ChatComponent key={session.id} modelTable={modelTable}></ChatComponent>
   );

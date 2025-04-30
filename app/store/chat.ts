@@ -811,12 +811,16 @@ export const useChatStore = createPersistStore(
         const modelConfig = session.mask.modelConfig;
         let compressModel = modelConfig.compressModel;
         let providerName = modelConfig.compressProviderName;
+        // console.log("000 compressModel:", compressModel);
+        // console.log("providerName: ", providerName);
         if (!providerName && access.compressModel) {
           let providerNameStr;
           [compressModel, providerNameStr] = access.compressModel.split("@");
           providerName = providerNameStr as ServiceProvider;
         }
 
+        // console.log("111 compressModel:", compressModel);
+        // console.log("providerName: ", providerName);
         try {
           const storedProvidersData = safeLocalStorage().getItem(
             StoreKey.CustomProvider,
@@ -841,6 +845,8 @@ export const useChatStore = createPersistStore(
           console.error("Error processing custom providers:", error);
           access.useCustomProvider = false;
         }
+        // console.log("222 compressModel:", compressModel);
+        // console.log("providerName: ", providerName);
         const api: ClientApi = getClientApi(providerName);
 
         // remove error messages if any

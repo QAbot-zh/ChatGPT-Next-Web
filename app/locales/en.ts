@@ -119,8 +119,9 @@ const en: LocaleType = {
           "This translation has been completed and replaced the input text.",
         Undo: "Undo Translate",
         UndoToast: "Undo Translate Success",
-        TranslatePrompt:
-          "Please act as a professional Chinese-English interpreter. First, identify the language of the input text and then accurately translate it into the other language (translate Chinese into English and English into Chinese). Ensure the translation is natural, fluent, idiomatic, and uses beautiful and elegant expressions. The text may contain redundant line breaks within paragraphs or pagination issues due to copying problems; please intelligently remove these based on context to produce a coherent and smooth translation. Regardless of the content you receive, you should only provide the translated text—do not include the original text, any explanations, or any other information.This is the content you need to translate: \n",
+        SystemPrompt:
+          "Please act as a professional Chinese-English interpreter. First, identify the language of the input text and then accurately translate it into the other language (translate Chinese into English and English into Chinese). Ensure the translation is natural, fluent, idiomatic, and uses beautiful and elegant expressions. The text may contain redundant line breaks within paragraphs or pagination issues due to copying problems; please intelligently remove these based on context to produce a coherent and smooth translation. Regardless of the content you receive, you should only provide the translated text—do not include the original text, any explanations, or any other information.",
+        UserPrompt: "Translate the following text: \n",
       },
       OCR: {
         Title: "OCR",
@@ -146,6 +147,39 @@ const en: LocaleType = {
 10.Do not make any modifications, polishing, or reorganization of the text content.",
         DetectPrompt:
           "Please help me OCR this image, according to the above rules, and ensure the accuracy of the output results without any additional content.",
+      },
+      ImprovePrompt: {
+        Title: "improve prompt",
+        BlankToast: "Input content is empty, no optimization will be performed",
+        isImprovingToast: "Currently optimizing ...",
+        FailImprovingToast:
+          "This optimization failed; please check the optimization model settings and try again.",
+        SuccessImprovingToast:
+          "This optimization has been completed and replaced the input content.",
+        Undo: "Undo Optimization",
+        UndoToast: "Undo Optimization Success",
+        SystemPrompt:
+          "You are an AI prompt optimization specialist operating in an AI Model playground context. Your role is to analyze and improve user prompts while adhering to the following guidelines:\
+\
+    Evaluate the given prompt based on:\
+    - Clarity and specificity of instructions\
+    - Alignment with intended goals\
+    - Potential for consistent model responses\
+    - Technical feasibility within model constraints\
+    - Absence of ambiguous or conflicting directions\
+\
+    Provide improvements that:\
+    - Enhance precision and clarity\
+    - Maintain compatibility with AI Model playground parameters\
+    - Optimize for both effectiveness and efficiency\
+    - Remove redundancies and ambiguities\
+    - Include necessary context and constraints\
+\
+    Focus solely on prompt improvement without engaging in task execution or additional commentary. Ensure all improvements maintain technical feasibility within standard AI Model playground limitations. Do not add surrounding quotes to the suggested prompt. Do not change the language of user prompts.\
+\
+    Please respond with the improved user prompt only, formatted clearly and ready for implementation.",
+        UserPrompt:
+          "Improve this user prompt without changing its original language: \n",
       },
       Privacy: {
         Title: "Privatize the input",
@@ -546,9 +580,9 @@ const en: LocaleType = {
       Title: "Summary Model",
       SubTitle: "Model used to compress history and generate title",
     },
-    TranslateModel: {
-      Title: "translation model",
-      SubTitle: "Model used to translate input text",
+    TextProcessModel: {
+      Title: "text process model",
+      SubTitle: "BasicModel used to translate/polish/.. the input text",
     },
     OCRModel: {
       Title: "ocr model",

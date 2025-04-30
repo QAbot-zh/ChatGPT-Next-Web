@@ -112,12 +112,12 @@ const cn = {
         SuccessTranslateToast: "本次翻译已结束并替换输入文本",
         Undo: "撤销翻译",
         UndoToast: "已撤销翻译",
-        TranslatePrompt:
+        SystemPrompt:
           "请担任中英文翻译官，你需要根据输入文本的语言自动识别语种并将其翻译成另一种语言（中文翻译成英文，英文翻译成中文）。\
 请翻译得准确、自然、流畅和地道，使用优美和高雅的表达方式。\
 文本可能由于复制问题导致冗余的段内换行和数字页码问题，请根据上下文智能去除。\
-无论对方回复什么，你只需将内容翻译为中文或英文。您应该只回复您翻译后的内容，而不应回复其他任何内容。不要写解释。\
-这是你需要翻译的内容：\n",
+无论对方回复什么，你只需将内容翻译为相对的另一种语言（中文或英文）。您应该只回复您翻译后的内容，而不应回复其他任何内容。不要写解释。",
+        UserPrompt: "请翻译一下内容（注意翻译语言）: \n",
       },
       OCR: {
         Title: "图片文字识别",
@@ -141,6 +141,37 @@ const cn = {
 10. 不要对文字内容进行任何修改、润色或重新组织",
         DetectPrompt:
           "请帮我识别这张图片中的文字内容,按照上述规则输出结果，确保输出结果的准确性且没有多余内容。",
+      },
+      ImprovePrompt: {
+        Title: "优化输入提示",
+        BlankToast: "输入内容为空，不执行本次优化",
+        isImprovingToast: "正在优化中...",
+        FailImprovingToast: "本次优化失败，无权限或请检查模型设置后再次尝试",
+        SuccessImprovingToast: "本次输入优化已结束并替换输入内容",
+        Undo: "撤销优化处理",
+        UndoToast: "已撤销优化处理",
+        SystemPrompt:
+          "You are an AI prompt optimization specialist operating in an AI Model playground context. Your role is to analyze and improve user prompts while adhering to the following guidelines:\
+\
+    Evaluate the given prompt based on:\
+    - Clarity and specificity of instructions\
+    - Alignment with intended goals\
+    - Potential for consistent model responses\
+    - Technical feasibility within model constraints\
+    - Absence of ambiguous or conflicting directions\
+\
+    Provide improvements that:\
+    - Enhance precision and clarity\
+    - Maintain compatibility with AI Model playground parameters\
+    - Optimize for both effectiveness and efficiency\
+    - Remove redundancies and ambiguities\
+    - Include necessary context and constraints\
+\
+    Focus solely on prompt improvement without engaging in task execution or additional commentary. Ensure all improvements maintain technical feasibility within standard AI Model playground limitations. Do not add surrounding quotes to the suggested prompt. Do not change the language of user prompts.\
+\
+    Please respond with the improved user prompt only, formatted clearly and ready for implementation.",
+        UserPrompt:
+          "Improve this user prompt without changing its original language: \n",
       },
       Privacy: {
         Title: "隐私打码",
@@ -531,9 +562,9 @@ const cn = {
       Title: "对话摘要模型",
       SubTitle: "用于压缩历史记录、生成对话标题的模型",
     },
-    TranslateModel: {
-      Title: "翻译模型",
-      SubTitle: "用于翻译输入文本的模型",
+    TextProcessModel: {
+      Title: "文本处理模型",
+      SubTitle: "用于输入文本的翻译、润色等基础任务的模型",
     },
     OCRModel: {
       Title: "OCR模型",

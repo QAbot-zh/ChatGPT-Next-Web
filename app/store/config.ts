@@ -82,8 +82,10 @@ export const DEFAULT_CONFIG = {
     compressMessageLengthThreshold: 1000,
     compressModel: "gpt-4o-mini" as ModelType,
     compressProviderName: "" as ServiceProvider,
-    translateModel: "gpt-4o-mini" as ModelType,
-    translateProviderName: "" as ServiceProvider,
+    // translateModel: "gpt-4o-mini" as ModelType,
+    // translateProviderName: "" as ServiceProvider,
+    textProcessModel: "gpt-4o-mini" as ModelType,
+    textProcessProviderName: "" as ServiceProvider,
     ocrModel: "gpt-4o-mini" as ModelType,
     ocrProviderName: "" as ServiceProvider,
     enableInjectSystemPrompts: false,
@@ -192,7 +194,7 @@ export const useAppConfig = createPersistStore(
   }),
   {
     name: StoreKey.Config,
-    version: 4.2,
+    version: 4.3,
 
     merge(persistedState, currentState) {
       const state = persistedState as ChatConfig | undefined;
@@ -254,10 +256,10 @@ export const useAppConfig = createPersistStore(
           DEFAULT_CONFIG.modelConfig.compressModel;
         state.modelConfig.compressProviderName =
           DEFAULT_CONFIG.modelConfig.compressProviderName;
-        state.modelConfig.translateModel =
-          DEFAULT_CONFIG.modelConfig.translateModel;
-        state.modelConfig.translateProviderName =
-          DEFAULT_CONFIG.modelConfig.translateProviderName;
+        // state.modelConfig.translateModel =
+        //   DEFAULT_CONFIG.modelConfig.translateModel;
+        // state.modelConfig.translateProviderName =
+        //   DEFAULT_CONFIG.modelConfig.translateProviderName;
         state.modelConfig.ocrModel = DEFAULT_CONFIG.modelConfig.ocrModel;
         state.modelConfig.ocrProviderName =
           DEFAULT_CONFIG.modelConfig.ocrProviderName;
@@ -270,6 +272,12 @@ export const useAppConfig = createPersistStore(
         state.modelConfig.frequency_penalty_enabled = false;
         state.modelConfig.enableStreamUsageOptions = false;
         state.modelConfig.reasoning_effort = "none";
+      }
+      if (version < 4.3) {
+        state.modelConfig.textProcessModel =
+          DEFAULT_CONFIG.modelConfig.textProcessModel;
+        state.modelConfig.textProcessProviderName =
+          DEFAULT_CONFIG.modelConfig.textProcessProviderName;
       }
       return state as any;
     },
