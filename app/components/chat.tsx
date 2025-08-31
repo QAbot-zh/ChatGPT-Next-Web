@@ -2498,7 +2498,7 @@ function ChatComponent({ modelTable }: { modelTable: Model[] }) {
   const [speechStatus, setSpeechStatus] = useState(false);
   const [speechLoading, setSpeechLoading] = useState(false);
   // cover default hello message
-  BOT_HELLO.content = accessStore.customHello || BOT_HELLO.content;
+  // BOT_HELLO.content = accessStore.customHello || BOT_HELLO.content;
   Locale.Error.Unauthorized =
     accessStore.UnauthorizedInfo || Locale.Error.Unauthorized;
 
@@ -4073,11 +4073,12 @@ function ChatComponent({ modelTable }: { modelTable: Model[] }) {
   );
 }
 
-export function Chat() {
+export function Chat({ initialHello }: { initialHello?: string }) {
   const chatStore = useChatStore();
   const session = chatStore.currentSession();
   const allModels = useAllModelsWithCustomProviders();
   const access = useAccessStore();
+  BOT_HELLO.content = initialHello || access.customHello || BOT_HELLO.content;
 
   const modelTable = useMemo(() => {
     const filteredModels = allModels.filter((m) => m.available);

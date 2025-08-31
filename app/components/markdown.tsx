@@ -30,6 +30,8 @@ import { useAppConfig } from "../store/config";
 
 import Collapse from "antd/es/collapse";
 import styles from "./markdown.module.scss";
+import "../styles/markdown.scss";
+import "../styles/highlight.scss";
 
 type CodeFoldCtx = {
   collapsed: boolean;

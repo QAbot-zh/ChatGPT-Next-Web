@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-page-custom-font */
 import "./styles/globals.scss";
-import "./styles/markdown.scss";
-import "./styles/highlight.scss";
+// import "./styles/markdown.scss";
+// import "./styles/highlight.scss";
 import { getClientConfig } from "./config/client";
 import { Metadata, Viewport } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";

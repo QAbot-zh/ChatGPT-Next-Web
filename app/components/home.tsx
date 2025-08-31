@@ -161,7 +161,7 @@ const loadAsyncGoogleFont = () => {
   document.head.appendChild(linkEl);
 };
 
-function Screen() {
+function Screen({ initialHello }: { initialHello?: string | null }) {
   const config = useAppConfig();
   const location = useLocation();
   const isArtifact = location.pathname.includes(Path.Artifacts);
@@ -226,12 +226,18 @@ function Screen() {
 
           <div className={styles["window-content"]} id={SlotID.AppBody}>
             <Routes>
-              <Route path={Path.Home} element={<Chat />} />
+              <Route
+                path={Path.Home}
+                element={<Chat initialHello={initialHello ?? undefined} />}
+              />
               <Route path={Path.NewChat} element={<NewChat />} />
               <Route path={Path.Masks} element={<MaskPage />} />
               <Route path={Path.SearchChat} element={<SearchChat />} />
               <Route path={Path.CloudBackup} element={<CloudBackup />} />
-              <Route path={Path.Chat} element={<Chat />} />
+              <Route
+                path={Path.Chat}
+                element={<Chat initialHello={initialHello ?? undefined} />}
+              />
               <Route path={Path.Settings} element={<Settings />} />
               <Route
                 path={`${Path.CustomProvider}/:providerId?`}
@@ -265,7 +271,7 @@ export function useLoadData() {
   }, []);
 }
 
-export function Home() {
+export function Home({ initialHello }: { initialHello?: string | null }) {
   useSwitchTheme();
   useLoadData();
   useHtmlLang();
@@ -283,7 +289,7 @@ export function Home() {
     <ErrorBoundary>
       <Router>
         <CustomCssProvider />
-        <Screen />
+        <Screen initialHello={initialHello ?? undefined} />
         <FloatingButton />
       </Router>
     </ErrorBoundary>
