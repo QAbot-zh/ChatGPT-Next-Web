@@ -1,6 +1,66 @@
 .settings {
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
   overflow: auto;
+}
+
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.settings-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-in-light);
+  background-color: var(--second-background);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.settings-tab:hover {
+  background-color: var(--hover-color);
+}
+
+.settings-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.settings-tab-active {
+  background-color: var(--primary);
+  color: var(--white);
+  border-color: transparent;
+  box-shadow: 0 8px 16px rgba(67, 133, 245, 0.25);
+}
+
+.settings-tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-tab-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 20px;
 }
 
 .avatar {
@@ -324,9 +384,21 @@
 .custom-css-enable {
   display: flex;
   align-items: center;
-  
+
   input {
     font-size: var(--text-sm);
     margin-right: 8px;
   }
+}
+
+.custom-css-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.custom-endpoint-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }

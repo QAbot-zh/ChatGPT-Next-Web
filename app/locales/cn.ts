@@ -336,6 +336,14 @@ const cn = {
   Settings: {
     Title: "设置",
     SubTitle: "所有设置选项",
+    Tabs: {
+      General: "通用设置",
+      Sync: "云同步",
+      Assistant: "助手",
+      Messages: "消息",
+      Access: "接入",
+      Voice: "语音",
+    },
     ShowPassword: "显示密码",
 
     Danger: {

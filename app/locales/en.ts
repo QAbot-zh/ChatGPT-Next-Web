@@ -359,6 +359,14 @@ const en: LocaleType = {
   Settings: {
     Title: "Settings",
     SubTitle: "All Settings",
+    Tabs: {
+      General: "General",
+      Sync: "Cloud Sync",
+      Assistant: "Assistant",
+      Messages: "Messages",
+      Access: "Access",
+      Voice: "Voice",
+    },
     ShowPassword: "ShowPassword",
     Danger: {
       Fix: {
