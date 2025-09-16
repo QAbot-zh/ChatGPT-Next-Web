@@ -1366,6 +1366,72 @@ export function Settings() {
           ></InputRange>
         </ListItem>
       </List>
+      <List>
+        <ListItem
+          title={Locale.Settings.SendPreviewBubble.Title}
+          subTitle={Locale.Settings.SendPreviewBubble.SubTitle}
+        >
+          <input
+            type="checkbox"
+            checked={config.sendPreviewBubble}
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.sendPreviewBubble = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Mask.Config.Artifacts.Title}
+          subTitle={Locale.Mask.Config.Artifacts.SubTitle}
+        >
+          <input
+            aria-label={Locale.Mask.Config.Artifacts.Title}
+            type="checkbox"
+            checked={config.enableArtifacts}
+            onChange={(e) =>
+              updateConfig(
+                (config) => (config.enableArtifacts = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Mask.Config.CodeFold.Title}
+          subTitle={Locale.Mask.Config.CodeFold.SubTitle}
+        >
+          <input
+            aria-label={Locale.Mask.Config.CodeFold.Title}
+            type="checkbox"
+            checked={config.enableCodeFold}
+            onChange={(e) =>
+              updateConfig(
+                (config) => (config.enableCodeFold = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Mask.Config.FloatingButton.Title}
+          subTitle={Locale.Mask.Config.FloatingButton.SubTitle}
+        >
+          <input
+            aria-label={Locale.Mask.Config.FloatingButton.Title}
+            type="checkbox"
+            checked={config.enableFloatingButton}
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.enableFloatingButton = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+      </List>
       <DangerItems />
     </>
   );
@@ -1386,94 +1452,6 @@ export function Settings() {
             )
           }
         ></input>
-      </ListItem>
-
-      <ListItem
-        title={Locale.Settings.SendPreviewBubble.Title}
-        subTitle={Locale.Settings.SendPreviewBubble.SubTitle}
-      >
-        <input
-          type="checkbox"
-          checked={config.sendPreviewBubble}
-          onChange={(e) =>
-            updateConfig(
-              (config) => (config.sendPreviewBubble = e.currentTarget.checked),
-            )
-          }
-        ></input>
-      </ListItem>
-
-      <ListItem
-        title={Locale.Mask.Config.Artifacts.Title}
-        subTitle={Locale.Mask.Config.Artifacts.SubTitle}
-      >
-        <input
-          aria-label={Locale.Mask.Config.Artifacts.Title}
-          type="checkbox"
-          checked={config.enableArtifacts}
-          onChange={(e) =>
-            updateConfig(
-              (config) => (config.enableArtifacts = e.currentTarget.checked),
-            )
-          }
-        ></input>
-      </ListItem>
-
-      <ListItem
-        title={Locale.Mask.Config.CodeFold.Title}
-        subTitle={Locale.Mask.Config.CodeFold.SubTitle}
-      >
-        <input
-          aria-label={Locale.Mask.Config.CodeFold.Title}
-          type="checkbox"
-          checked={config.enableCodeFold}
-          onChange={(e) =>
-            updateConfig(
-              (config) => (config.enableCodeFold = e.currentTarget.checked),
-            )
-          }
-        ></input>
-      </ListItem>
-
-      <ListItem
-        title={Locale.Mask.Config.FloatingButton.Title}
-        subTitle={Locale.Mask.Config.FloatingButton.SubTitle}
-      >
-        <input
-          aria-label={Locale.Mask.Config.FloatingButton.Title}
-          type="checkbox"
-          checked={config.enableFloatingButton}
-          onChange={(e) =>
-            updateConfig(
-              (config) =>
-                (config.enableFloatingButton = e.currentTarget.checked),
-            )
-          }
-        ></input>
-      </ListItem>
-
-      <ListItem title={Locale.Settings.Prompt.CustomUserContinuePrompt.Enable}>
-        <input
-          type="checkbox"
-          checked={config.enableShowUserContinuePrompt}
-          onChange={(e) =>
-            updateConfig(
-              (config) =>
-                (config.enableShowUserContinuePrompt = e.currentTarget.checked),
-            )
-          }
-        ></input>
-      </ListItem>
-
-      <ListItem
-        title={Locale.Settings.Prompt.CustomUserContinuePrompt.Title}
-        subTitle={Locale.Settings.Prompt.CustomUserContinuePrompt.SubTitle}
-      >
-        <IconButton
-          icon={<EditIcon />}
-          text={Locale.Settings.Prompt.CustomUserContinuePrompt.Edit}
-          onClick={() => setShowCustomContinuePromptModal(true)}
-        />
       </ListItem>
     </List>
   );
@@ -1538,6 +1516,33 @@ export function Settings() {
             icon={<EditIcon />}
             text={Locale.Settings.Prompt.Edit}
             onClick={() => setShowPromptModal(true)}
+          />
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.Prompt.CustomUserContinuePrompt.Enable}
+        >
+          <input
+            type="checkbox"
+            checked={config.enableShowUserContinuePrompt}
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.enableShowUserContinuePrompt =
+                    e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.Prompt.CustomUserContinuePrompt.Title}
+          subTitle={Locale.Settings.Prompt.CustomUserContinuePrompt.SubTitle}
+        >
+          <IconButton
+            icon={<EditIcon />}
+            text={Locale.Settings.Prompt.CustomUserContinuePrompt.Edit}
+            onClick={() => setShowCustomContinuePromptModal(true)}
           />
         </ListItem>
       </List>
@@ -2029,46 +2034,50 @@ export function Settings() {
 
   return (
     <ErrorBoundary>
-      <div className="window-header" data-tauri-drag-region>
-        <div className="window-header-title">
-          <div className="window-header-main-title">
-            {Locale.Settings.Title}
-          </div>
-          <div className="window-header-sub-title">
-            {Locale.Settings.SubTitle}
+      <div className={styles["settings-page"]}>
+        <div className={styles["settings-header"]}>
+          <div className="window-header" data-tauri-drag-region>
+            <div className="window-header-title">
+              <div className="window-header-main-title">
+                {Locale.Settings.Title}
+              </div>
+              <div className="window-header-sub-title">
+                {Locale.Settings.SubTitle}
+              </div>
+            </div>
+            <div className="window-actions">
+              <div className="window-action-button"></div>
+              <div className="window-action-button"></div>
+              <div className="window-action-button">
+                <IconButton
+                  icon={<CloseIcon />}
+                  onClick={() => navigate(Path.Home)}
+                  bordered
+                />
+              </div>
+            </div>
           </div>
         </div>
-        <div className="window-actions">
-          <div className="window-action-button"></div>
-          <div className="window-action-button"></div>
-          <div className="window-action-button">
-            <IconButton
-              icon={<CloseIcon />}
-              onClick={() => navigate(Path.Home)}
-              bordered
-            />
+        <div className={styles["settings"]}>
+          <div className={styles["settings-tabs"]}>
+            {settingsTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`${styles["settings-tab"]} ${
+                  activeTab === tab.id ? styles["settings-tab-active"] : ""
+                }`}
+                onClick={() => setActiveTab(tab.id)}
+                aria-pressed={activeTab === tab.id}
+              >
+                <span className={styles["settings-tab-icon"]}>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
           </div>
-        </div>
-      </div>
-      <div className={styles["settings"]}>
-        <div className={styles["settings-tabs"]}>
-          {settingsTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`${styles["settings-tab"]} ${
-                activeTab === tab.id ? styles["settings-tab-active"] : ""
-              }`}
-              onClick={() => setActiveTab(tab.id)}
-              aria-pressed={activeTab === tab.id}
-            >
-              <span className={styles["settings-tab-icon"]}>{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-        <div className={styles["settings-content"]}>
-          {tabContentMap[activeTab]}
+          <div className={styles["settings-content"]}>
+            {tabContentMap[activeTab]}
+          </div>
         </div>
       </div>
 

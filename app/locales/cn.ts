@@ -337,7 +337,7 @@ const cn = {
     Title: "设置",
     SubTitle: "所有设置选项",
     Tabs: {
-      General: "通用设置",
+      General: "个性化设置",
       Sync: "云同步",
       Assistant: "助手",
       Messages: "消息",

@@ -1,10 +1,27 @@
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--background);
+}
+
+.settings-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--background);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
 .settings {
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 100%;
+  flex: 1;
   overflow: auto;
+  min-height: 0;
 }
 
 .settings-tabs {

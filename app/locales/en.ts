@@ -360,7 +360,7 @@ const en: LocaleType = {
     Title: "Settings",
     SubTitle: "All Settings",
     Tabs: {
-      General: "General",
+      General: "Personalization",
       Sync: "Cloud Sync",
       Assistant: "Assistant",
       Messages: "Messages",
