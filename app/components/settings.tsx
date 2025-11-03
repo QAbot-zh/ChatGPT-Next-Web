@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 
 import styles from "./settings.module.scss";
 import { useCustomCssStore } from "../store/customCss";
@@ -14,6 +14,12 @@ import EyeIcon from "../icons/eye.svg";
 import DownloadIcon from "../icons/download.svg";
 import UploadIcon from "../icons/upload.svg";
 import ConfigIcon from "../icons/config.svg";
+import GeneralSettingsIcon from "../icons/settings.svg";
+import CloudIcon from "../icons/cloud.svg";
+import AssistantIcon from "../icons/robot.svg";
+import ChatIcon from "../icons/chat.svg";
+import AccessIcon from "../icons/custom-models.svg";
+import VoiceIcon from "../icons/speak.svg";
 import ConfirmIcon from "../icons/confirm.svg";
 
 import ConnectionIcon from "../icons/connection.svg";
@@ -1040,6 +1046,20 @@ function SyncItems() {
   );
 }
 
+type SettingsTab =
+  | "general"
+  | "sync"
+  | "assistant"
+  | "messages"
+  | "access"
+  | "voice";
+
+interface SettingsTabItem {
+  id: SettingsTab;
+  label: string;
+  icon: ReactNode;
+}
+
 export function Settings() {
   const navigate = useNavigate();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -1119,7 +1139,6 @@ export function Settings() {
   const builtinCount = SearchService.count.builtin;
   const customCount = promptStore.getUserPrompts().length ?? 0;
   const [shouldShowPromptModal, setShowPromptModal] = useState(false);
-  const [shouldShowPersonalization, setShowPersonalization] = useState(false);
   const [shouldShowModelSettings, setshouldShowModelSettings] = useState(false);
   const [
     shouldShowCustomContinuePromptModal,
@@ -1131,7 +1150,6 @@ export function Settings() {
 
   const showUsage = accessStore.isAuthorized();
   useEffect(() => {
-    // checks per minutes
     checkUpdate();
     showUsage && checkUsage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1144,7 +1162,6 @@ export function Settings() {
       }
     };
     if (clientConfig?.isApp) {
-      // Force to set custom endpoint to true if it's app
       accessStore.update((state) => {
         state.useCustomConfig = true;
       });
@@ -1159,883 +1176,926 @@ export function Settings() {
   const clientConfig = useMemo(() => getClientConfig(), []);
   const showAccessCode = enabledAccessControl && !clientConfig?.isApp;
 
-  return (
-    <ErrorBoundary>
-      <div className="window-header" data-tauri-drag-region>
-        <div className="window-header-title">
-          <div className="window-header-main-title">
-            {Locale.Settings.Title}
-          </div>
-          <div className="window-header-sub-title">
-            {Locale.Settings.SubTitle}
-          </div>
-        </div>
-        <div className="window-actions">
-          <div className="window-action-button"></div>
-          <div className="window-action-button"></div>
-          <div className="window-action-button">
-            <IconButton
-              icon={<CloseIcon />}
-              onClick={() => navigate(Path.Home)}
-              bordered
-            />
-          </div>
-        </div>
-      </div>
-      <div className={styles["settings"]}>
-        <List>
-          <ListItem title={Locale.Settings.Avatar}>
-            <Popover
-              onClose={() => setShowEmojiPicker(false)}
-              content={
-                <AvatarPicker
-                  onEmojiClick={(avatar: string) => {
-                    updateConfig((config) => (config.avatar = avatar));
-                    setShowEmojiPicker(false);
-                  }}
-                />
-              }
-              open={showEmojiPicker}
-            >
-              <div
-                className={styles.avatar}
-                onClick={() => {
-                  setShowEmojiPicker(!showEmojiPicker);
-                }}
-              >
-                <Avatar avatar={config.avatar} />
-              </div>
-            </Popover>
-          </ListItem>
+  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
 
-          <ListItem
-            title={Locale.Settings.Update.Version(currentVersion ?? "unknown")}
-            subTitle={
-              checkingUpdate
-                ? Locale.Settings.Update.IsChecking
-                : hasNewVersion
-                ? Locale.Settings.Update.FoundUpdate(remoteId ?? "ERROR")
-                : Locale.Settings.Update.IsLatest
-            }
-          >
-            {checkingUpdate ? (
-              <LoadingIcon />
-            ) : hasNewVersion ? (
-              <Link href={updateUrl} target="_blank" className="link">
-                {Locale.Settings.Update.GoToUpdate}
-              </Link>
-            ) : (
-              <IconButton
-                icon={<ResetIcon></ResetIcon>}
-                text={Locale.Settings.Update.CheckUpdate}
-                onClick={() => checkUpdate(true)}
-              />
-            )}
-          </ListItem>
+  useEffect(() => {
+    if (activeTab !== "general") {
+      setShowEmojiPicker(false);
+    }
+  }, [activeTab]);
 
-          <ListItem
-            title={Locale.Settings.Personalization.Title}
-            subTitle={
-              shouldShowPersonalization
-                ? Locale.Settings.Personalization.CloseSubTile
-                : Locale.Settings.Personalization.SubTitle
-            }
-          >
-            <input
-              aria-label={Locale.Settings.Personalization.Title}
-              type="checkbox"
-              checked={shouldShowPersonalization}
-              onChange={(e) => setShowPersonalization(e.currentTarget.checked)}
-            ></input>
-          </ListItem>
+  const settingsTabs: SettingsTabItem[] = [
+    {
+      id: "general",
+      label: Locale.Settings.Tabs.General,
+      icon: <GeneralSettingsIcon />,
+    },
+    {
+      id: "sync",
+      label: Locale.Settings.Tabs.Sync,
+      icon: <CloudIcon />,
+    },
+    {
+      id: "assistant",
+      label: Locale.Settings.Tabs.Assistant,
+      icon: <AssistantIcon />,
+    },
+    {
+      id: "messages",
+      label: Locale.Settings.Tabs.Messages,
+      icon: <ChatIcon />,
+    },
+    {
+      id: "access",
+      label: Locale.Settings.Tabs.Access,
+      icon: <AccessIcon />,
+    },
+    {
+      id: "voice",
+      label: Locale.Settings.Tabs.Voice,
+      icon: <VoiceIcon />,
+    },
+  ];
 
-          <>
-            {shouldShowPersonalization && (
-              <>
-                <ListItem title={Locale.Settings.SendKey}>
-                  <Select
-                    value={config.submitKey}
-                    onChange={(e) => {
-                      updateConfig(
-                        (config) =>
-                          (config.submitKey = e.target
-                            .value as any as SubmitKey),
-                      );
-                    }}
-                  >
-                    {Object.values(SubmitKey).map((v) => (
-                      <option value={v} key={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </Select>
-                </ListItem>
-
-                <ListItem title={Locale.Settings.Theme}>
-                  <Select
-                    value={config.theme}
-                    onChange={(e) => {
-                      updateConfig(
-                        (config) =>
-                          (config.theme = e.target.value as any as Theme),
-                      );
-                    }}
-                  >
-                    {Object.values(Theme).map((v) => (
-                      <option value={v} key={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </Select>
-                </ListItem>
-
-                <ListItem
-                  title={Locale.Settings.CustomCSS.Title}
-                  subTitle={
-                    customCss.enabled
-                      ? Locale.Settings.CustomCSS.SubTitleEnabled
-                      : Locale.Settings.CustomCSS.SubTitleDisabled
-                  }
-                >
-                  <div style={{ display: "flex", alignItems: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={customCss.enabled}
-                      onChange={(e) => {
-                        if (e.currentTarget.checked) {
-                          customCss.enable();
-                        } else {
-                          customCss.disable();
-                        }
-                      }}
-                      style={{ marginRight: "10px" }}
-                    />
-                    <IconButton
-                      icon={<EditIcon />}
-                      text={Locale.Settings.CustomCSS.Edit}
-                      onClick={() => setShowCustomCssModal(true)}
-                    />
-                  </div>
-                </ListItem>
-
-                <ListItem title={Locale.Settings.Lang.Name}>
-                  <Select
-                    value={getLang()}
-                    onChange={(e) => {
-                      changeLang(e.target.value as any);
-                    }}
-                  >
-                    {AllLangs.map((lang) => (
-                      <option value={lang} key={lang}>
-                        {ALL_LANG_OPTIONS[lang]}
-                      </option>
-                    ))}
-                  </Select>
-                </ListItem>
-
-                <ListItem
-                  title={Locale.Settings.FontSize.Title}
-                  subTitle={Locale.Settings.FontSize.SubTitle}
-                >
-                  <InputRange
-                    aria={Locale.Settings.FontSize.Title}
-                    title={`${config.fontSize ?? 14}px`}
-                    value={config.fontSize}
-                    min="12"
-                    max="40"
-                    step="1"
-                    onChange={(e) =>
-                      updateConfig(
-                        (config) =>
-                          (config.fontSize = Number.parseInt(
-                            e.currentTarget.value,
-                          )),
-                      )
-                    }
-                  ></InputRange>
-                </ListItem>
-
-                <ListItem
-                  title={Locale.Settings.AutoGenerateTitle.Title}
-                  subTitle={Locale.Settings.AutoGenerateTitle.SubTitle}
-                >
-                  <input
-                    type="checkbox"
-                    checked={config.enableAutoGenerateTitle}
-                    onChange={(e) =>
-                      updateConfig(
-                        (config) =>
-                          (config.enableAutoGenerateTitle =
-                            e.currentTarget.checked),
-                      )
-                    }
-                  ></input>
-                </ListItem>
-
-                <ListItem
-                  title={Locale.Settings.SendPreviewBubble.Title}
-                  subTitle={Locale.Settings.SendPreviewBubble.SubTitle}
-                >
-                  <input
-                    type="checkbox"
-                    checked={config.sendPreviewBubble}
-                    onChange={(e) =>
-                      updateConfig(
-                        (config) =>
-                          (config.sendPreviewBubble = e.currentTarget.checked),
-                      )
-                    }
-                  ></input>
-                </ListItem>
-
-                <ListItem
-                  title={Locale.Mask.Config.Artifacts.Title}
-                  subTitle={Locale.Mask.Config.Artifacts.SubTitle}
-                >
-                  <input
-                    aria-label={Locale.Mask.Config.Artifacts.Title}
-                    type="checkbox"
-                    checked={config.enableArtifacts}
-                    onChange={(e) =>
-                      updateConfig(
-                        (config) =>
-                          (config.enableArtifacts = e.currentTarget.checked),
-                      )
-                    }
-                  ></input>
-                </ListItem>
-                <ListItem
-                  title={Locale.Mask.Config.CodeFold.Title}
-                  subTitle={Locale.Mask.Config.CodeFold.SubTitle}
-                >
-                  <input
-                    aria-label={Locale.Mask.Config.CodeFold.Title}
-                    type="checkbox"
-                    checked={config.enableCodeFold}
-                    onChange={(e) =>
-                      updateConfig(
-                        (config) =>
-                          (config.enableCodeFold = e.currentTarget.checked),
-                      )
-                    }
-                  ></input>
-                </ListItem>
-                <ListItem
-                  title={Locale.Mask.Config.FloatingButton.Title}
-                  subTitle={Locale.Mask.Config.FloatingButton.SubTitle}
-                >
-                  <input
-                    aria-label={Locale.Mask.Config.FloatingButton.Title}
-                    type="checkbox"
-                    checked={config.enableFloatingButton}
-                    onChange={(e) =>
-                      updateConfig(
-                        (config) =>
-                          (config.enableFloatingButton =
-                            e.currentTarget.checked),
-                      )
-                    }
-                  ></input>
-                </ListItem>
-              </>
-            )}
-          </>
-        </List>
-
-        <SyncItems />
-
-        <List>
-          <ListItem
-            title={Locale.Settings.Mask.Splash.Title}
-            subTitle={Locale.Settings.Mask.Splash.SubTitle}
-          >
-            <input
-              type="checkbox"
-              checked={!config.dontShowMaskSplashScreen}
-              onChange={(e) =>
-                updateConfig(
-                  (config) =>
-                    (config.dontShowMaskSplashScreen =
-                      !e.currentTarget.checked),
-                )
-              }
-            ></input>
-          </ListItem>
-
-          <ListItem
-            title={Locale.Settings.Mask.Builtin.Title}
-            subTitle={Locale.Settings.Mask.Builtin.SubTitle}
-          >
-            <input
-              type="checkbox"
-              checked={config.hideBuiltinMasks}
-              onChange={(e) =>
-                updateConfig(
-                  (config) =>
-                    (config.hideBuiltinMasks = e.currentTarget.checked),
-                )
-              }
-            ></input>
-          </ListItem>
-        </List>
-
-        <List>
-          <ListItem
-            title={Locale.Settings.Prompt.Disable.Title}
-            subTitle={Locale.Settings.Prompt.Disable.SubTitle}
-          >
-            <input
-              type="checkbox"
-              checked={config.disablePromptHint}
-              onChange={(e) =>
-                updateConfig(
-                  (config) =>
-                    (config.disablePromptHint = e.currentTarget.checked),
-                )
-              }
-            ></input>
-          </ListItem>
-
-          <ListItem
-            title={Locale.Settings.Prompt.List}
-            subTitle={Locale.Settings.Prompt.ListCount(
-              builtinCount,
-              customCount,
-            )}
-          >
-            <IconButton
-              icon={<EditIcon />}
-              text={Locale.Settings.Prompt.Edit}
-              onClick={() => setShowPromptModal(true)}
-            />
-          </ListItem>
-          <ListItem
-            title={Locale.Settings.Prompt.CustomUserContinuePrompt.Enable}
-          >
-            <input
-              type="checkbox"
-              checked={config.enableShowUserContinuePrompt}
-              onChange={(e) =>
-                updateConfig(
-                  (config) =>
-                    (config.enableShowUserContinuePrompt =
-                      e.currentTarget.checked),
-                )
-              }
-            ></input>
-          </ListItem>
-          <ListItem
-            title={Locale.Settings.Prompt.CustomUserContinuePrompt.Title}
-            subTitle={Locale.Settings.Prompt.CustomUserContinuePrompt.SubTitle}
-          >
-            <IconButton
-              icon={<EditIcon />}
-              text={Locale.Settings.Prompt.CustomUserContinuePrompt.Edit}
-              onClick={() => setShowCustomContinuePromptModal(true)}
-            />
-          </ListItem>
-        </List>
-
-        <List id={SlotID.CustomModel}>
-          {showAccessCode && (
-            <ListItem
-              title={Locale.Settings.Access.AccessCode.Title}
-              subTitle={Locale.Settings.Access.AccessCode.SubTitle}
-            >
-              <PasswordInput
-                value={accessStore.accessCode}
-                type="text"
-                placeholder={Locale.Settings.Access.AccessCode.Placeholder}
-                onChange={(e) => {
-                  accessStore.update(
-                    (access) => (access.accessCode = e.currentTarget.value),
-                  );
+  const generalTabContent = (
+    <>
+      <List>
+        <ListItem title={Locale.Settings.Avatar}>
+          <Popover
+            onClose={() => setShowEmojiPicker(false)}
+            content={
+              <AvatarPicker
+                onEmojiClick={(avatar: string) => {
+                  updateConfig((config) => (config.avatar = avatar));
+                  setShowEmojiPicker(false);
                 }}
               />
-            </ListItem>
+            }
+            open={showEmojiPicker}
+          >
+            <div
+              className={styles.avatar}
+              onClick={() => {
+                setShowEmojiPicker(!showEmojiPicker);
+              }}
+            >
+              <Avatar avatar={config.avatar} />
+            </div>
+          </Popover>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.Update.Version(currentVersion ?? "unknown")}
+          subTitle={
+            checkingUpdate
+              ? Locale.Settings.Update.IsChecking
+              : hasNewVersion
+              ? Locale.Settings.Update.FoundUpdate(remoteId ?? "ERROR")
+              : Locale.Settings.Update.IsLatest
+          }
+        >
+          {checkingUpdate ? (
+            <LoadingIcon />
+          ) : hasNewVersion ? (
+            <Link href={updateUrl} target="_blank" className="link">
+              {Locale.Settings.Update.GoToUpdate}
+            </Link>
+          ) : (
+            <IconButton
+              icon={<ResetIcon></ResetIcon>}
+              text={Locale.Settings.Update.CheckUpdate}
+              onClick={() => checkUpdate(true)}
+            />
           )}
+        </ListItem>
 
-          {!accessStore.hideUserApiKey && (
-            <>
-              {
-                // Conditionally render the following ListItem based on clientConfig.isApp
-                !clientConfig?.isApp && ( // only show if isApp is false
-                  <ListItem
-                    title={Locale.Settings.Access.CustomEndpoint.Title}
-                    subTitle={Locale.Settings.Access.CustomEndpoint.SubTitle}
+        <ListItem title={Locale.Settings.SendKey}>
+          <Select
+            value={config.submitKey}
+            onChange={(e) => {
+              updateConfig(
+                (config) =>
+                  (config.submitKey = e.target.value as any as SubmitKey),
+              );
+            }}
+          >
+            {Object.values(SubmitKey).map((v) => (
+              <option value={v} key={v}>
+                {v}
+              </option>
+            ))}
+          </Select>
+        </ListItem>
+
+        <ListItem title={Locale.Settings.Theme}>
+          <Select
+            value={config.theme}
+            onChange={(e) => {
+              updateConfig(
+                (config) => (config.theme = e.target.value as any as Theme),
+              );
+            }}
+          >
+            {Object.values(Theme).map((v) => (
+              <option value={v} key={v}>
+                {v}
+              </option>
+            ))}
+          </Select>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.CustomCSS.Title}
+          subTitle={
+            customCss.enabled
+              ? Locale.Settings.CustomCSS.SubTitleEnabled
+              : Locale.Settings.CustomCSS.SubTitleDisabled
+          }
+        >
+          <div className={styles["custom-css-row"]}>
+            <input
+              type="checkbox"
+              checked={customCss.enabled}
+              onChange={(e) => {
+                if (e.currentTarget.checked) {
+                  customCss.enable();
+                } else {
+                  customCss.disable();
+                }
+              }}
+            />
+            <IconButton
+              icon={<EditIcon />}
+              text={Locale.Settings.CustomCSS.Edit}
+              onClick={() => setShowCustomCssModal(true)}
+            />
+          </div>
+        </ListItem>
+
+        <ListItem title={Locale.Settings.Lang.Name}>
+          <Select
+            value={getLang()}
+            onChange={(e) => {
+              changeLang(e.target.value as any);
+            }}
+          >
+            {AllLangs.map((lang) => (
+              <option value={lang} key={lang}>
+                {ALL_LANG_OPTIONS[lang]}
+              </option>
+            ))}
+          </Select>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.FontSize.Title}
+          subTitle={Locale.Settings.FontSize.SubTitle}
+        >
+          <InputRange
+            aria={Locale.Settings.FontSize.Title}
+            title={`${config.fontSize ?? 14}px`}
+            value={config.fontSize}
+            min="12"
+            max="40"
+            step="1"
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.fontSize = Number.parseInt(e.currentTarget.value)),
+              )
+            }
+          ></InputRange>
+        </ListItem>
+      </List>
+      <List>
+        <ListItem
+          title={Locale.Settings.SendPreviewBubble.Title}
+          subTitle={Locale.Settings.SendPreviewBubble.SubTitle}
+        >
+          <input
+            type="checkbox"
+            checked={config.sendPreviewBubble}
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.sendPreviewBubble = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Mask.Config.Artifacts.Title}
+          subTitle={Locale.Mask.Config.Artifacts.SubTitle}
+        >
+          <input
+            aria-label={Locale.Mask.Config.Artifacts.Title}
+            type="checkbox"
+            checked={config.enableArtifacts}
+            onChange={(e) =>
+              updateConfig(
+                (config) => (config.enableArtifacts = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Mask.Config.CodeFold.Title}
+          subTitle={Locale.Mask.Config.CodeFold.SubTitle}
+        >
+          <input
+            aria-label={Locale.Mask.Config.CodeFold.Title}
+            type="checkbox"
+            checked={config.enableCodeFold}
+            onChange={(e) =>
+              updateConfig(
+                (config) => (config.enableCodeFold = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Mask.Config.FloatingButton.Title}
+          subTitle={Locale.Mask.Config.FloatingButton.SubTitle}
+        >
+          <input
+            aria-label={Locale.Mask.Config.FloatingButton.Title}
+            type="checkbox"
+            checked={config.enableFloatingButton}
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.enableFloatingButton = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+      </List>
+      <DangerItems />
+    </>
+  );
+
+  const messagesTabContent = (
+    <List>
+      <ListItem
+        title={Locale.Settings.AutoGenerateTitle.Title}
+        subTitle={Locale.Settings.AutoGenerateTitle.SubTitle}
+      >
+        <input
+          type="checkbox"
+          checked={config.enableAutoGenerateTitle}
+          onChange={(e) =>
+            updateConfig(
+              (config) =>
+                (config.enableAutoGenerateTitle = e.currentTarget.checked),
+            )
+          }
+        ></input>
+      </ListItem>
+    </List>
+  );
+
+  const assistantTabContent = (
+    <>
+      <List>
+        <ListItem
+          title={Locale.Settings.Mask.Splash.Title}
+          subTitle={Locale.Settings.Mask.Splash.SubTitle}
+        >
+          <input
+            type="checkbox"
+            checked={!config.dontShowMaskSplashScreen}
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.dontShowMaskSplashScreen = !e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.Mask.Builtin.Title}
+          subTitle={Locale.Settings.Mask.Builtin.SubTitle}
+        >
+          <input
+            type="checkbox"
+            checked={config.hideBuiltinMasks}
+            onChange={(e) =>
+              updateConfig(
+                (config) => (config.hideBuiltinMasks = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+      </List>
+
+      <List>
+        <ListItem
+          title={Locale.Settings.Prompt.Disable.Title}
+          subTitle={Locale.Settings.Prompt.Disable.SubTitle}
+        >
+          <input
+            type="checkbox"
+            checked={config.disablePromptHint}
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.disablePromptHint = e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.Prompt.List}
+          subTitle={Locale.Settings.Prompt.ListCount(builtinCount, customCount)}
+        >
+          <IconButton
+            icon={<EditIcon />}
+            text={Locale.Settings.Prompt.Edit}
+            onClick={() => setShowPromptModal(true)}
+          />
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.Prompt.CustomUserContinuePrompt.Enable}
+        >
+          <input
+            type="checkbox"
+            checked={config.enableShowUserContinuePrompt}
+            onChange={(e) =>
+              updateConfig(
+                (config) =>
+                  (config.enableShowUserContinuePrompt =
+                    e.currentTarget.checked),
+              )
+            }
+          ></input>
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.Prompt.CustomUserContinuePrompt.Title}
+          subTitle={Locale.Settings.Prompt.CustomUserContinuePrompt.SubTitle}
+        >
+          <IconButton
+            icon={<EditIcon />}
+            text={Locale.Settings.Prompt.CustomUserContinuePrompt.Edit}
+            onClick={() => setShowCustomContinuePromptModal(true)}
+          />
+        </ListItem>
+      </List>
+
+      <List>
+        <ListItem
+          title={Locale.Settings.Expansion.EnabledTitle}
+          subTitle={Locale.Settings.Expansion.EnabledSubTitle}
+        >
+          <input
+            type="checkbox"
+            checked={config.enableTextExpansion}
+            onChange={(e) =>
+              config.update(
+                (config) =>
+                  (config.enableTextExpansion = e.currentTarget.checked),
+              )
+            }
+          />
+        </ListItem>
+        <ListItem
+          title={Locale.Settings.Expansion.Title}
+          subTitle={Locale.Settings.Expansion.SubTitle}
+        >
+          <IconButton
+            icon={<EditIcon />}
+            text={Locale.Settings.Expansion.Manage}
+            onClick={() => setShowExpansionRules(true)}
+          />
+        </ListItem>
+      </List>
+
+      <List>
+        <ListItem
+          title={Locale.Settings.ModelSettings.Title}
+          subTitle={
+            shouldShowModelSettings
+              ? Locale.Settings.ModelSettings.CloseSubTile
+              : Locale.Settings.ModelSettings.SubTitle
+          }
+        >
+          <input
+            aria-label={Locale.Settings.ModelSettings.Title}
+            type="checkbox"
+            checked={shouldShowModelSettings}
+            onChange={(e) =>
+              setshouldShowModelSettings(e.currentTarget.checked)
+            }
+          ></input>
+        </ListItem>
+        {shouldShowModelSettings && (
+          <ModelConfigList
+            modelConfig={config.modelConfig}
+            updateConfig={(updater) => {
+              const modelConfig = { ...config.modelConfig };
+              updater(modelConfig);
+              config.update((config) => (config.modelConfig = modelConfig));
+            }}
+          />
+        )}
+      </List>
+    </>
+  );
+
+  const accessTabContent = (
+    <>
+      <List id={SlotID.CustomModel}>
+        {showAccessCode && (
+          <ListItem
+            title={Locale.Settings.Access.AccessCode.Title}
+            subTitle={Locale.Settings.Access.AccessCode.SubTitle}
+          >
+            <PasswordInput
+              value={accessStore.accessCode}
+              type="text"
+              placeholder={Locale.Settings.Access.AccessCode.Placeholder}
+              onChange={(e) => {
+                accessStore.update(
+                  (access) => (access.accessCode = e.currentTarget.value),
+                );
+              }}
+            />
+          </ListItem>
+        )}
+
+        {!accessStore.hideUserApiKey && (
+          <>
+            {!clientConfig?.isApp && (
+              <ListItem
+                title={Locale.Settings.Access.CustomEndpoint.Title}
+                subTitle={Locale.Settings.Access.CustomEndpoint.SubTitle}
+              >
+                <div className={styles["custom-endpoint-actions"]}>
+                  <IconButton
+                    text={Locale.Settings.Access.CustomEndpoint.Advanced}
+                    type="info"
+                    icon={<CustomProviderIcon />}
+                    onClick={() => navigate(Path.CustomProvider)}
+                    bordered
+                  />
+                  <input
+                    aria-label={Locale.Settings.Access.CustomEndpoint.Title}
+                    type="checkbox"
+                    checked={accessStore.useCustomConfig}
+                    onChange={(e) =>
+                      accessStore.update(
+                        (access) =>
+                          (access.useCustomConfig = e.currentTarget.checked),
+                      )
+                    }
+                  ></input>
+                </div>
+              </ListItem>
+            )}
+            {accessStore.useCustomConfig && (
+              <>
+                <ListItem
+                  title={Locale.Settings.Access.Provider.Title}
+                  subTitle={Locale.Settings.Access.Provider.SubTitle}
+                >
+                  <Select
+                    value={accessStore.provider}
+                    onChange={(e) => {
+                      accessStore.update(
+                        (access) =>
+                          (access.provider = e.target.value as ServiceProvider),
+                      );
+                    }}
                   >
-                    <div style={{ display: "flex", alignItems: "center" }}>
-                      <IconButton
-                        text={Locale.Settings.Access.CustomEndpoint.Advanced}
-                        type="info"
-                        icon={<CustomProviderIcon />}
-                        onClick={() => navigate(Path.CustomProvider)}
-                        bordered
-                      />
+                    {Object.entries(ServiceProvider).map(([k, v]) => (
+                      <option value={v} key={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </Select>
+                </ListItem>
+
+                {accessStore.provider === ServiceProvider.OpenAI && (
+                  <>
+                    <ListItem
+                      title={Locale.Settings.Access.OpenAI.Endpoint.Title}
+                      subTitle={Locale.Settings.Access.OpenAI.Endpoint.SubTitle}
+                    >
                       <input
-                        aria-label={Locale.Settings.Access.CustomEndpoint.Title}
-                        type="checkbox"
-                        checked={accessStore.useCustomConfig}
+                        aria-label={
+                          Locale.Settings.Access.OpenAI.Endpoint.Title
+                        }
+                        type="text"
+                        value={accessStore.openaiUrl}
+                        placeholder={OPENAI_BASE_URL}
                         onChange={(e) =>
                           accessStore.update(
                             (access) =>
-                              (access.useCustomConfig =
-                                e.currentTarget.checked),
+                              (access.openaiUrl = e.currentTarget.value),
                           )
                         }
                       ></input>
-                    </div>
-                  </ListItem>
-                )
-              }
-              {accessStore.useCustomConfig && (
-                <>
-                  <ListItem
-                    title={Locale.Settings.Access.Provider.Title}
-                    subTitle={Locale.Settings.Access.Provider.SubTitle}
-                  >
-                    <Select
-                      value={accessStore.provider}
-                      onChange={(e) => {
-                        accessStore.update(
-                          (access) =>
-                            (access.provider = e.target
-                              .value as ServiceProvider),
-                        );
-                      }}
+                    </ListItem>
+                    <ListItem
+                      title={Locale.Settings.Access.OpenAI.ApiKey.Title}
+                      subTitle={Locale.Settings.Access.OpenAI.ApiKey.SubTitle}
                     >
-                      {Object.entries(ServiceProvider).map(([k, v]) => (
-                        <option value={v} key={k}>
-                          {k}
-                        </option>
-                      ))}
-                    </Select>
-                  </ListItem>
-
-                  {accessStore.provider === ServiceProvider.OpenAI && (
-                    <>
-                      <ListItem
-                        title={Locale.Settings.Access.OpenAI.Endpoint.Title}
-                        subTitle={
-                          Locale.Settings.Access.OpenAI.Endpoint.SubTitle
+                      <PasswordInput
+                        style={{ width: "300px" }}
+                        aria={Locale.Settings.ShowPassword}
+                        aria-label={Locale.Settings.Access.OpenAI.ApiKey.Title}
+                        value={accessStore.openaiApiKey}
+                        type="text"
+                        placeholder={
+                          Locale.Settings.Access.OpenAI.ApiKey.Placeholder
                         }
-                      >
-                        <input
-                          aria-label={
-                            Locale.Settings.Access.OpenAI.Endpoint.Title
-                          }
-                          type="text"
-                          value={accessStore.openaiUrl}
-                          placeholder={OPENAI_BASE_URL}
-                          onChange={(e) =>
-                            accessStore.update(
-                              (access) =>
-                                (access.openaiUrl = e.currentTarget.value),
+                        onChange={(e) => {
+                          accessStore.update(
+                            (access) =>
+                              (access.openaiApiKey = e.currentTarget.value),
+                          );
+                        }}
+                      />
+                    </ListItem>
+                    <ListItem
+                      title={
+                        Locale.Settings.Access.OpenAI.AvailableModels.Title
+                      }
+                      subTitle={
+                        Locale.Settings.Access.OpenAI.AvailableModels.SubTitle
+                      }
+                    >
+                      <IconButton
+                        text={
+                          Locale.Settings.Access.OpenAI.AvailableModels.Action
+                        }
+                        onClick={async () => {
+                          if (
+                            await showConfirm(
+                              Locale.Settings.Access.OpenAI.AvailableModels
+                                .Confirm,
                             )
-                          }
-                        ></input>
-                      </ListItem>
-                      <ListItem
-                        title={Locale.Settings.Access.OpenAI.ApiKey.Title}
-                        subTitle={Locale.Settings.Access.OpenAI.ApiKey.SubTitle}
-                      >
-                        <PasswordInput
-                          style={{ width: "300px" }}
-                          aria={Locale.Settings.ShowPassword}
-                          aria-label={
-                            Locale.Settings.Access.OpenAI.ApiKey.Title
-                          }
-                          value={accessStore.openaiApiKey}
-                          type="text"
-                          placeholder={
-                            Locale.Settings.Access.OpenAI.ApiKey.Placeholder
-                          }
-                          onChange={(e) => {
-                            accessStore.update(
-                              (access) =>
-                                (access.openaiApiKey = e.currentTarget.value),
-                            );
-                          }}
-                        />
-                      </ListItem>
-                      {/* 获取可用模型列表功能 */}
-                      <ListItem
-                        title={
-                          Locale.Settings.Access.OpenAI.AvailableModels.Title
-                        }
-                        subTitle={
-                          Locale.Settings.Access.OpenAI.AvailableModels.SubTitle
-                        }
-                      >
-                        <IconButton
-                          text={
-                            Locale.Settings.Access.OpenAI.AvailableModels.Action
-                          }
-                          onClick={async () => {
-                            if (
-                              await showConfirm(
-                                Locale.Settings.Access.OpenAI.AvailableModels
-                                  .Confirm,
-                              )
-                            ) {
-                              const availableModelsStr =
-                                await accessStore.fetchAvailableModels(
-                                  accessStore.openaiUrl,
-                                  accessStore.openaiApiKey,
-                                );
-                              config.update(
-                                (config) =>
-                                  (config.customModels = availableModelsStr),
+                          ) {
+                            const availableModelsStr =
+                              await accessStore.fetchAvailableModels(
+                                accessStore.openaiUrl,
+                                accessStore.openaiApiKey,
                               );
-                            }
-                          }}
-                          type="primary"
-                        />
-                      </ListItem>
-                    </>
-                  )}
-                  {accessStore.provider === ServiceProvider.Azure && (
-                    <>
-                      <ListItem
-                        title={Locale.Settings.Access.Azure.Endpoint.Title}
-                        subTitle={
-                          Locale.Settings.Access.Azure.Endpoint.SubTitle +
-                          Azure.ExampleEndpoint
-                        }
-                      >
-                        <input
-                          aria-label={
-                            Locale.Settings.Access.Azure.Endpoint.Title
-                          }
-                          type="text"
-                          value={accessStore.azureUrl}
-                          placeholder={Azure.ExampleEndpoint}
-                          onChange={(e) =>
-                            accessStore.update(
-                              (access) =>
-                                (access.azureUrl = e.currentTarget.value),
-                            )
-                          }
-                        ></input>
-                      </ListItem>
-                      <ListItem
-                        title={Locale.Settings.Access.Azure.ApiKey.Title}
-                        subTitle={Locale.Settings.Access.Azure.ApiKey.SubTitle}
-                      >
-                        <PasswordInput
-                          aria-label={Locale.Settings.Access.Azure.ApiKey.Title}
-                          value={accessStore.azureApiKey}
-                          type="text"
-                          placeholder={
-                            Locale.Settings.Access.Azure.ApiKey.Placeholder
-                          }
-                          onChange={(e) => {
-                            accessStore.update(
-                              (access) =>
-                                (access.azureApiKey = e.currentTarget.value),
+                            config.update(
+                              (config) =>
+                                (config.customModels = availableModelsStr),
                             );
-                          }}
-                        />
-                      </ListItem>
-                      <ListItem
-                        title={Locale.Settings.Access.Azure.ApiVerion.Title}
-                        subTitle={
-                          Locale.Settings.Access.Azure.ApiVerion.SubTitle
-                        }
-                      >
-                        <input
-                          aria-label={Locale.Settings.Access.Azure.ApiKey.Title}
-                          type="text"
-                          value={accessStore.azureApiVersion}
-                          placeholder="2023-08-01-preview"
-                          onChange={(e) =>
-                            accessStore.update(
-                              (access) =>
-                                (access.azureApiVersion =
-                                  e.currentTarget.value),
-                            )
                           }
-                        ></input>
-                      </ListItem>
-                    </>
-                  )}
-                  {accessStore.provider === ServiceProvider.Google && (
-                    <>
-                      <ListItem
-                        title={Locale.Settings.Access.Google.Endpoint.Title}
-                        subTitle={
-                          Locale.Settings.Access.Google.Endpoint.SubTitle +
-                          Google.ExampleEndpoint
-                        }
-                      >
-                        <input
-                          aria-label={
-                            Locale.Settings.Access.Google.Endpoint.Title
-                          }
-                          type="text"
-                          value={accessStore.googleUrl}
-                          placeholder={Google.ExampleEndpoint}
-                          onChange={(e) =>
-                            accessStore.update(
-                              (access) =>
-                                (access.googleUrl = e.currentTarget.value),
-                            )
-                          }
-                        ></input>
-                      </ListItem>
-                      <ListItem
-                        title={Locale.Settings.Access.Google.ApiKey.Title}
-                        subTitle={Locale.Settings.Access.Google.ApiKey.SubTitle}
-                      >
-                        <PasswordInput
-                          aria-label={
-                            Locale.Settings.Access.Google.ApiKey.Title
-                          }
-                          value={accessStore.googleApiKey}
-                          type="text"
-                          placeholder={
-                            Locale.Settings.Access.Google.ApiKey.Placeholder
-                          }
-                          onChange={(e) => {
-                            accessStore.update(
-                              (access) =>
-                                (access.googleApiKey = e.currentTarget.value),
-                            );
-                          }}
-                        />
-                      </ListItem>
-                      <ListItem
-                        title={Locale.Settings.Access.Google.ApiVersion.Title}
-                        subTitle={
-                          Locale.Settings.Access.Google.ApiVersion.SubTitle
-                        }
-                      >
-                        <input
-                          aria-label={
-                            Locale.Settings.Access.Google.ApiVersion.Title
-                          }
-                          type="text"
-                          value={accessStore.googleApiVersion}
-                          placeholder="2023-08-01-preview"
-                          onChange={(e) =>
-                            accessStore.update(
-                              (access) =>
-                                (access.googleApiVersion =
-                                  e.currentTarget.value),
-                            )
-                          }
-                        ></input>
-                      </ListItem>
-                    </>
-                  )}
-                  {accessStore.provider === ServiceProvider.Anthropic && (
-                    <>
-                      <ListItem
-                        title={Locale.Settings.Access.Anthropic.Endpoint.Title}
-                        subTitle={
-                          Locale.Settings.Access.Anthropic.Endpoint.SubTitle +
-                          Anthropic.ExampleEndpoint
-                        }
-                      >
-                        <input
-                          aria-label={
-                            Locale.Settings.Access.Anthropic.Endpoint.Title
-                          }
-                          type="text"
-                          value={accessStore.anthropicUrl}
-                          placeholder={Anthropic.ExampleEndpoint}
-                          onChange={(e) =>
-                            accessStore.update(
-                              (access) =>
-                                (access.anthropicUrl = e.currentTarget.value),
-                            )
-                          }
-                        ></input>
-                      </ListItem>
-                      <ListItem
-                        title={Locale.Settings.Access.Anthropic.ApiKey.Title}
-                        subTitle={
-                          Locale.Settings.Access.Anthropic.ApiKey.SubTitle
-                        }
-                      >
-                        <PasswordInput
-                          aria-label={
-                            Locale.Settings.Access.Anthropic.ApiKey.Title
-                          }
-                          value={accessStore.anthropicApiKey}
-                          type="text"
-                          placeholder={
-                            Locale.Settings.Access.Anthropic.ApiKey.Placeholder
-                          }
-                          onChange={(e) => {
-                            accessStore.update(
-                              (access) =>
-                                (access.anthropicApiKey =
-                                  e.currentTarget.value),
-                            );
-                          }}
-                        />
-                      </ListItem>
-                      <ListItem
-                        title={Locale.Settings.Access.Anthropic.ApiVerion.Title}
-                        subTitle={
-                          Locale.Settings.Access.Anthropic.ApiVerion.SubTitle
-                        }
-                      >
-                        <input
-                          aria-label={
-                            Locale.Settings.Access.Anthropic.ApiVerion.Title
-                          }
-                          type="text"
-                          value={accessStore.anthropicApiVersion}
-                          placeholder={Anthropic.Vision}
-                          onChange={(e) =>
-                            accessStore.update(
-                              (access) =>
-                                (access.anthropicApiVersion =
-                                  e.currentTarget.value),
-                            )
-                          }
-                        ></input>
-                      </ListItem>
-                    </>
-                  )}
-                </>
-              )}
-            </>
-          )}
+                        }}
+                        type="primary"
+                      />
+                    </ListItem>
+                  </>
+                )}
 
-          {!shouldHideBalanceQuery && !clientConfig?.isApp ? (
-            <ListItem
-              title={Locale.Settings.Usage.Title}
-              subTitle={
-                showUsage
-                  ? loadingUsage
-                    ? Locale.Settings.Usage.IsChecking
-                    : Locale.Settings.Usage.SubTitle(
-                        usage?.used ?? "[?]",
-                        usage?.subscription ?? "[?]",
-                      )
-                  : Locale.Settings.Usage.NoAccess
-              }
-            >
-              {!showUsage || loadingUsage ? (
-                <div />
-              ) : (
-                <IconButton
-                  icon={<ResetIcon></ResetIcon>}
-                  text={Locale.Settings.Usage.Check}
-                  onClick={() => checkUsage(true)}
-                />
-              )}
-            </ListItem>
-          ) : null}
+                {accessStore.provider === ServiceProvider.Azure && (
+                  <>
+                    <ListItem
+                      title={Locale.Settings.Access.Azure.Endpoint.Title}
+                      subTitle={
+                        Locale.Settings.Access.Azure.Endpoint.SubTitle +
+                        Azure.ExampleEndpoint
+                      }
+                    >
+                      <input
+                        aria-label={Locale.Settings.Access.Azure.Endpoint.Title}
+                        type="text"
+                        value={accessStore.azureUrl}
+                        placeholder={Azure.ExampleEndpoint}
+                        onChange={(e) =>
+                          accessStore.update(
+                            (access) =>
+                              (access.azureUrl = e.currentTarget.value),
+                          )
+                        }
+                      ></input>
+                    </ListItem>
+                    <ListItem
+                      title={Locale.Settings.Access.Azure.ApiKey.Title}
+                      subTitle={Locale.Settings.Access.Azure.ApiKey.SubTitle}
+                    >
+                      <PasswordInput
+                        aria-label={Locale.Settings.Access.Azure.ApiKey.Title}
+                        value={accessStore.azureApiKey}
+                        type="text"
+                        placeholder={
+                          Locale.Settings.Access.Azure.ApiKey.Placeholder
+                        }
+                        onChange={(e) => {
+                          accessStore.update(
+                            (access) =>
+                              (access.azureApiKey = e.currentTarget.value),
+                          );
+                        }}
+                      />
+                    </ListItem>
+                    <ListItem
+                      title={Locale.Settings.Access.Azure.ApiVerion.Title}
+                      subTitle={Locale.Settings.Access.Azure.ApiVerion.SubTitle}
+                    >
+                      <input
+                        aria-label={Locale.Settings.Access.Azure.ApiKey.Title}
+                        type="text"
+                        value={accessStore.azureApiVersion}
+                        placeholder="2023-08-01-preview"
+                        onChange={(e) =>
+                          accessStore.update(
+                            (access) =>
+                              (access.azureApiVersion = e.currentTarget.value),
+                          )
+                        }
+                      ></input>
+                    </ListItem>
+                  </>
+                )}
 
+                {accessStore.provider === ServiceProvider.Google && (
+                  <>
+                    <ListItem
+                      title={Locale.Settings.Access.Google.Endpoint.Title}
+                      subTitle={
+                        Locale.Settings.Access.Google.Endpoint.SubTitle +
+                        Google.ExampleEndpoint
+                      }
+                    >
+                      <input
+                        aria-label={
+                          Locale.Settings.Access.Google.Endpoint.Title
+                        }
+                        type="text"
+                        value={accessStore.googleUrl}
+                        placeholder={Google.ExampleEndpoint}
+                        onChange={(e) =>
+                          accessStore.update(
+                            (access) =>
+                              (access.googleUrl = e.currentTarget.value),
+                          )
+                        }
+                      ></input>
+                    </ListItem>
+                    <ListItem
+                      title={Locale.Settings.Access.Google.ApiKey.Title}
+                      subTitle={Locale.Settings.Access.Google.ApiKey.SubTitle}
+                    >
+                      <PasswordInput
+                        aria-label={Locale.Settings.Access.Google.ApiKey.Title}
+                        value={accessStore.googleApiKey}
+                        type="text"
+                        placeholder={
+                          Locale.Settings.Access.Google.ApiKey.Placeholder
+                        }
+                        onChange={(e) => {
+                          accessStore.update(
+                            (access) =>
+                              (access.googleApiKey = e.currentTarget.value),
+                          );
+                        }}
+                      />
+                    </ListItem>
+                    <ListItem
+                      title={Locale.Settings.Access.Google.ApiVersion.Title}
+                      subTitle={
+                        Locale.Settings.Access.Google.ApiVersion.SubTitle
+                      }
+                    >
+                      <input
+                        aria-label={
+                          Locale.Settings.Access.Google.ApiVersion.Title
+                        }
+                        type="text"
+                        value={accessStore.googleApiVersion}
+                        placeholder="2023-08-01-preview"
+                        onChange={(e) =>
+                          accessStore.update(
+                            (access) =>
+                              (access.googleApiVersion = e.currentTarget.value),
+                          )
+                        }
+                      ></input>
+                    </ListItem>
+                  </>
+                )}
+
+                {accessStore.provider === ServiceProvider.Anthropic && (
+                  <>
+                    <ListItem
+                      title={Locale.Settings.Access.Anthropic.Endpoint.Title}
+                      subTitle={
+                        Locale.Settings.Access.Anthropic.Endpoint.SubTitle +
+                        Anthropic.ExampleEndpoint
+                      }
+                    >
+                      <input
+                        aria-label={
+                          Locale.Settings.Access.Anthropic.Endpoint.Title
+                        }
+                        type="text"
+                        value={accessStore.anthropicUrl}
+                        placeholder={Anthropic.ExampleEndpoint}
+                        onChange={(e) =>
+                          accessStore.update(
+                            (access) =>
+                              (access.anthropicUrl = e.currentTarget.value),
+                          )
+                        }
+                      ></input>
+                    </ListItem>
+                    <ListItem
+                      title={Locale.Settings.Access.Anthropic.ApiKey.Title}
+                      subTitle={
+                        Locale.Settings.Access.Anthropic.ApiKey.SubTitle
+                      }
+                    >
+                      <PasswordInput
+                        aria-label={
+                          Locale.Settings.Access.Anthropic.ApiKey.Title
+                        }
+                        value={accessStore.anthropicApiKey}
+                        type="text"
+                        placeholder={
+                          Locale.Settings.Access.Anthropic.ApiKey.Placeholder
+                        }
+                        onChange={(e) => {
+                          accessStore.update(
+                            (access) =>
+                              (access.anthropicApiKey = e.currentTarget.value),
+                          );
+                        }}
+                      />
+                    </ListItem>
+                    <ListItem
+                      title={Locale.Settings.Access.Anthropic.ApiVerion.Title}
+                      subTitle={
+                        Locale.Settings.Access.Anthropic.ApiVerion.SubTitle
+                      }
+                    >
+                      <input
+                        aria-label={
+                          Locale.Settings.Access.Anthropic.ApiVerion.Title
+                        }
+                        type="text"
+                        value={accessStore.anthropicApiVersion}
+                        placeholder={Anthropic.Vision}
+                        onChange={(e) =>
+                          accessStore.update(
+                            (access) =>
+                              (access.anthropicApiVersion =
+                                e.currentTarget.value),
+                          )
+                        }
+                      ></input>
+                    </ListItem>
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {!shouldHideBalanceQuery && !clientConfig?.isApp ? (
           <ListItem
-            title={Locale.Settings.Access.CustomModel.Title}
-            subTitle={Locale.Settings.Access.CustomModel.SubTitle}
-            vertical={true}
-          >
-            <input
-              aria-label={Locale.Settings.Access.CustomModel.Title}
-              style={{ width: "100%", maxWidth: "unset", textAlign: "left" }}
-              type="text"
-              value={config.customModels}
-              placeholder="model1,model2,model3"
-              onChange={(e) =>
-                config.update(
-                  (config) => (config.customModels = e.currentTarget.value),
-                )
-              }
-            ></input>
-          </ListItem>
-        </List>
-
-        <List>
-          <ListItem
-            title={Locale.Settings.ModelSettings.Title}
+            title={Locale.Settings.Usage.Title}
             subTitle={
-              shouldShowModelSettings
-                ? Locale.Settings.ModelSettings.CloseSubTile
-                : Locale.Settings.ModelSettings.SubTitle
+              showUsage
+                ? loadingUsage
+                  ? Locale.Settings.Usage.IsChecking
+                  : Locale.Settings.Usage.SubTitle(
+                      usage?.used ?? "[?]",
+                      usage?.subscription ?? "[?]",
+                    )
+                : Locale.Settings.Usage.NoAccess
             }
           >
-            <input
-              aria-label={Locale.Settings.ModelSettings.Title}
-              type="checkbox"
-              checked={shouldShowModelSettings}
-              onChange={(e) =>
-                setshouldShowModelSettings(e.currentTarget.checked)
-              }
-            ></input>
+            {!showUsage || loadingUsage ? (
+              <div />
+            ) : (
+              <IconButton
+                icon={<ResetIcon></ResetIcon>}
+                text={Locale.Settings.Usage.Check}
+                onClick={() => checkUsage(true)}
+              />
+            )}
           </ListItem>
-          {shouldShowModelSettings && (
-            <ModelConfigList
-              modelConfig={config.modelConfig}
-              updateConfig={(updater) => {
-                const modelConfig = { ...config.modelConfig };
-                updater(modelConfig);
-                config.update((config) => (config.modelConfig = modelConfig));
-              }}
-            />
-          )}
-        </List>
+        ) : null}
 
-        {shouldShowCustomCssModal && (
-          <CustomCssModal onClose={() => setShowCustomCssModal(false)} />
-        )}
-        {shouldShowPromptModal && (
-          <UserPromptModal onClose={() => setShowPromptModal(false)} />
-        )}
-        {shouldShowCustomContinuePromptModal && (
-          <CustomUserContinuePromptModal
-            onClose={() => setShowCustomContinuePromptModal(false)}
-          />
-        )}
-        <List>
-          <ListItem
-            title={Locale.Settings.Expansion.EnabledTitle}
-            subTitle={Locale.Settings.Expansion.EnabledSubTitle}
-          >
-            <input
-              type="checkbox"
-              checked={config.enableTextExpansion}
-              onChange={(e) =>
-                config.update(
-                  (config) =>
-                    (config.enableTextExpansion = e.currentTarget.checked),
-                )
-              }
-            />
-          </ListItem>
-          <ListItem
-            title={Locale.Settings.Expansion.Title}
-            subTitle={Locale.Settings.Expansion.SubTitle}
-          >
-            <IconButton
-              icon={<EditIcon />}
-              text={Locale.Settings.Expansion.Manage}
-              onClick={() => setShowExpansionRules(true)}
-            />
-          </ListItem>
-        </List>
+        <ListItem
+          title={Locale.Settings.Access.CustomModel.Title}
+          subTitle={Locale.Settings.Access.CustomModel.SubTitle}
+          vertical={true}
+        >
+          <input
+            aria-label={Locale.Settings.Access.CustomModel.Title}
+            style={{ width: "100%", maxWidth: "unset", textAlign: "left" }}
+            type="text"
+            value={config.customModels}
+            placeholder="model1,model2,model3"
+            onChange={(e) =>
+              config.update(
+                (config) => (config.customModels = e.currentTarget.value),
+              )
+            }
+          ></input>
+        </ListItem>
+      </List>
+    </>
+  );
 
-        {showExpansionRules && (
-          <ExpansionRulesModal onClose={() => setShowExpansionRules(false)} />
-        )}
-        <List>
-          <TTSConfigList
-            ttsConfig={config.ttsConfig}
-            updateConfig={(updater) => {
-              const ttsConfig = { ...config.ttsConfig };
-              updater(ttsConfig);
-              config.update((config) => (config.ttsConfig = ttsConfig));
-            }}
-          />
-        </List>
+  const voiceTabContent = (
+    <List>
+      <TTSConfigList
+        ttsConfig={config.ttsConfig}
+        updateConfig={(updater) => {
+          const ttsConfig = { ...config.ttsConfig };
+          updater(ttsConfig);
+          config.update((config) => (config.ttsConfig = ttsConfig));
+        }}
+      />
+    </List>
+  );
 
-        <DangerItems />
+  const tabContentMap: Record<SettingsTab, ReactNode> = {
+    general: generalTabContent,
+    sync: <SyncItems />,
+    assistant: assistantTabContent,
+    messages: messagesTabContent,
+    access: accessTabContent,
+    voice: voiceTabContent,
+  };
+
+  return (
+    <ErrorBoundary>
+      <div className={styles["settings-page"]}>
+        <div className={styles["settings-header"]}>
+          <div className="window-header" data-tauri-drag-region>
+            <div className="window-header-title">
+              <div className="window-header-main-title">
+                {Locale.Settings.Title}
+              </div>
+              <div className="window-header-sub-title">
+                {Locale.Settings.SubTitle}
+              </div>
+            </div>
+            <div className="window-actions">
+              <div className="window-action-button"></div>
+              <div className="window-action-button"></div>
+              <div className="window-action-button">
+                <IconButton
+                  icon={<CloseIcon />}
+                  onClick={() => navigate(Path.Home)}
+                  bordered
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className={styles["settings"]}>
+          <div className={styles["settings-tabs"]}>
+            {settingsTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`${styles["settings-tab"]} ${
+                  activeTab === tab.id ? styles["settings-tab-active"] : ""
+                }`}
+                onClick={() => setActiveTab(tab.id)}
+                aria-pressed={activeTab === tab.id}
+              >
+                <span className={styles["settings-tab-icon"]}>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className={styles["settings-content"]}>
+            {tabContentMap[activeTab]}
+          </div>
+        </div>
       </div>
+
+      {shouldShowCustomCssModal && (
+        <CustomCssModal onClose={() => setShowCustomCssModal(false)} />
+      )}
+      {shouldShowPromptModal && (
+        <UserPromptModal onClose={() => setShowPromptModal(false)} />
+      )}
+      {shouldShowCustomContinuePromptModal && (
+        <CustomUserContinuePromptModal
+          onClose={() => setShowCustomContinuePromptModal(false)}
+        />
+      )}
+      {showExpansionRules && (
+        <ExpansionRulesModal onClose={() => setShowExpansionRules(false)} />
+      )}
     </ErrorBoundary>
   );
 }
