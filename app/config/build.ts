@@ -1,6 +1,9 @@
 import tauriConfig from "../../src-tauri/tauri.conf.json";
 import { DEFAULT_INPUT_TEMPLATE } from "../constant";
 
+// 构建时生成的唯一标识，用于检测版本不匹配
+const BUILD_ID = process.env.BUILD_ID || Date.now().toString();
+
 export const getBuildConfig = () => {
   if (typeof process === "undefined") {
     throw Error(
@@ -43,6 +46,7 @@ export const getBuildConfig = () => {
     ...commitInfo,
     buildMode,
     isApp,
+    buildId: BUILD_ID,
     template: process.env.DEFAULT_INPUT_TEMPLATE ?? DEFAULT_INPUT_TEMPLATE,
   };
 };

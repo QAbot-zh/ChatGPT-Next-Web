@@ -277,10 +277,52 @@ export function useLoadData() {
   }, []);
 }
 
+// 版本检测 Hook：当页面从后台切换回前台时检测服务器版本
+function useVersionCheck() {
+  useEffect(() => {
+    const checkVersion = async () => {
+      try {
+        const res = await fetch("/api/config");
+        const serverConfig = await res.json();
+        const clientBuildId = getClientConfig()?.buildId;
+
+        if (
+          serverConfig.buildId &&
+          clientBuildId &&
+          serverConfig.buildId !== clientBuildId
+        ) {
+          console.log(
+            "[Version] Mismatch detected:",
+            clientBuildId,
+            "->",
+            serverConfig.buildId,
+            ", reloading...",
+          );
+          window.location.reload();
+        }
+      } catch (e) {
+        // 忽略网络错误
+      }
+    };
+
+    // 页面可见时检查版本
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkVersion();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+}
+
 export function Home() {
   useSwitchTheme();
   useLoadData();
   useHtmlLang();
+  useVersionCheck();
 
   useEffect(() => {
     console.log("[Config] got config from build time", getClientConfig());

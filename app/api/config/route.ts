@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { getServerSideConfig, getSidebarConfig } from "../../config/server";
+import { getBuildConfig } from "../../config/build";
 
 const serverConfig = getServerSideConfig();
 const siderbarConfig = getSidebarConfig();
+const buildConfig = getBuildConfig();
 
 // Danger! Do not hard code any secret value here!
 // 警告！不要在这里写入任何敏感信息！
@@ -30,6 +32,8 @@ const DANGER_CONFIG = {
   modelParams: serverConfig.modelParams,
   // imageBed config
   imgUploadApiUrl: serverConfig.imgUploadApiUrl,
+  // 用于版本检测
+  buildId: buildConfig.buildId,
 };
 
 declare global {

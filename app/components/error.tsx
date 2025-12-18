@@ -22,6 +22,13 @@ export class ErrorBoundary extends React.Component<any, IErrorBoundaryState> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // 检测 Server Action 版本不匹配错误，自动刷新页面
+    if (error.message?.includes("Failed to find Server Action")) {
+      console.log("[Error] Server Action version mismatch, reloading...");
+      window.location.reload();
+      return;
+    }
+
     // Update state with error details
     this.setState({ hasError: true, error, info });
   }
