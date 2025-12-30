@@ -9,7 +9,6 @@ import {
 import { prettyObject } from "@/app/utils/format";
 import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = "force-static";
 import { auth } from "../../auth";
 import { collectModelTable } from "@/app/utils/model";
 
@@ -63,7 +62,10 @@ async function handle(
 export const GET = handle;
 export const POST = handle;
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
+export const dynamic = "force-static";
 export const preferredRegion = [
   "arn1",
   "bom1",

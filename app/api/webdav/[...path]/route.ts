@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { STORAGE_KEY, internalAllowedWebDavEndpoints } from "../../../constant";
 import { getServerSideConfig } from "@/app/config/server";
 
-export const dynamic = "force-static";
-
 const config = getServerSideConfig();
 
 const mergedAllowedWebDavEndpoints = [
@@ -171,4 +169,7 @@ export const PUT = handle;
 export const GET = handle;
 export const OPTIONS = handle;
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
+export const dynamic = "force-static";

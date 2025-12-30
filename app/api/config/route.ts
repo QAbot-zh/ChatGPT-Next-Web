@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 
 import { getServerSideConfig, getSidebarConfig } from "../../config/server";
 
-// Required for static export
-export const dynamic = "force-static";
-
 const serverConfig = getServerSideConfig();
 const siderbarConfig = getSidebarConfig();
 
@@ -46,4 +43,7 @@ async function handle() {
 export const GET = handle;
 export const POST = handle;
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
+export const dynamic = "force-static";

@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/app/api/auth";
 import { ModelProvider } from "@/app/constant";
 
-export const dynamic = "force-static";
-
 const PISTON_API_URL =
   process.env.PISTON_API_URL || "https://emkc.org/api/v2/piston/execute";
 const EXECUTION_TIMEOUT = Number(process.env.PISTON_TIMEOUT) || 10000; // 10 seconds
@@ -225,4 +223,7 @@ async function handle(req: NextRequest): Promise<NextResponse<PistonResponse>> {
 export const POST = handle;
 export const OPTIONS = handle;
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
+export const dynamic = "force-static";

@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = "force-static";
-
 async function handle(
   req: NextRequest,
   // { params }: { params: { action: string; key: string[] } },
@@ -77,4 +75,7 @@ export const POST = handle;
 export const GET = handle;
 export const OPTIONS = handle;
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
+export const dynamic = "force-static";

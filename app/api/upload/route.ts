@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSideConfig } from "../../config/server";
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
 export const dynamic = "force-static";
 
 const serverConfig = getServerSideConfig();

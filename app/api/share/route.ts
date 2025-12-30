@@ -7,8 +7,6 @@ import { auth } from "@/app/api/auth";
 import { ModelProvider } from "@/app/constant";
 import { ChatSession } from "@/app/store";
 
-export const dynamic = "force-static";
-
 async function handle(req: NextRequest) {
   const serverConfig = getServerSideConfig();
   if (
@@ -145,4 +143,7 @@ async function handle(req: NextRequest) {
 export const POST = handle;
 export const GET = handle;
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
+export const dynamic = "force-static";

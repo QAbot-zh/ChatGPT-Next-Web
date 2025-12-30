@@ -6,8 +6,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "../../auth";
 import { requestOpenai } from "../../common";
 
-export const dynamic = "force-static";
-
 const ALLOWD_PATH = new Set(Object.values(OpenaiPath));
 
 function getModels(remoteModelRes: OpenAIListModelResponse) {
@@ -84,7 +82,10 @@ async function handle(
 export const GET = handle;
 export const POST = handle;
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
+export const dynamic = "force-static";
 export const preferredRegion = [
   "arn1",
   "bom1",

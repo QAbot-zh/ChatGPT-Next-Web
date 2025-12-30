@@ -3,8 +3,6 @@ import { auth } from "../../auth";
 import { getServerSideConfig } from "@/app/config/server";
 import { GEMINI_BASE_URL, Google, ModelProvider } from "@/app/constant";
 
-export const dynamic = "force-static";
-
 async function handle(
   req: NextRequest,
   // { params }: { params: { path: string[] } },
@@ -101,7 +99,10 @@ async function handle(
 export const GET = handle;
 export const POST = handle;
 
+// Route segment config
 export const runtime = "edge";
+// Required for static export (Tauri build)
+export const dynamic = "force-static";
 export const preferredRegion = [
   "bom1",
   "cle1",
