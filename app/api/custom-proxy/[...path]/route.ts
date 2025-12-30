@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-static";
+
 /**
  * 通用代理端点，用于规避 CORS 限制
  * 客户端通过 X-Proxy-Target 头传入目标 baseUrl

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSideConfig } from "../../config/server";
 
 export const runtime = "edge";
+export const dynamic = "force-static";
 
 const serverConfig = getServerSideConfig();
 

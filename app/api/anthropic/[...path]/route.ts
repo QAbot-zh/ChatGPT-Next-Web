@@ -8,6 +8,8 @@ import {
 } from "@/app/constant";
 import { prettyObject } from "@/app/utils/format";
 import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = "force-static";
 import { auth } from "../../auth";
 import { collectModelTable } from "@/app/utils/model";
 

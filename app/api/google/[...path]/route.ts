@@ -3,6 +3,8 @@ import { auth } from "../../auth";
 import { getServerSideConfig } from "@/app/config/server";
 import { GEMINI_BASE_URL, Google, ModelProvider } from "@/app/constant";
 
+export const dynamic = "force-static";
+
 async function handle(
   req: NextRequest,
   // { params }: { params: { path: string[] } },

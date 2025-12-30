@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-static";
+
 async function handle(
   req: NextRequest,
   // { params }: { params: { action: string; key: string[] } },

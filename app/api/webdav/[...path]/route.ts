@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { STORAGE_KEY, internalAllowedWebDavEndpoints } from "../../../constant";
 import { getServerSideConfig } from "@/app/config/server";
 
+export const dynamic = "force-static";
+
 const config = getServerSideConfig();
 
 const mergedAllowedWebDavEndpoints = [

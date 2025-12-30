@@ -4,6 +4,8 @@ import { getServerSideConfig } from "@/app/config/server";
 import { auth } from "@/app/api/auth";
 import { ModelProvider } from "@/app/constant";
 
+export const dynamic = "force-static";
+
 async function handle(req: NextRequest) {
   const serverConfig = getServerSideConfig();
   if (

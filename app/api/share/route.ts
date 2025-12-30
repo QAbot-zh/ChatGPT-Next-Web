@@ -7,6 +7,8 @@ import { auth } from "@/app/api/auth";
 import { ModelProvider } from "@/app/constant";
 import { ChatSession } from "@/app/store";
 
+export const dynamic = "force-static";
+
 async function handle(req: NextRequest) {
   const serverConfig = getServerSideConfig();
   if (
