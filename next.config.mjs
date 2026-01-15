@@ -1,4 +1,9 @@
 import webpack from "webpack";
+import bundleAnalyzer from "@next/bundle-analyzer";
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 const mode = process.env.BUILD_MODE ?? "standalone";
 console.log("[Next] build mode", mode);
@@ -93,4 +98,4 @@ if (mode !== "export") {
   };
 }
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

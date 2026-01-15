@@ -46,18 +46,18 @@ export function compressImage(file: Blob, maxSize: number): Promise<string> {
     reader.onerror = reject;
 
     if (file.type.includes("heic")) {
-      try {
-        const heic2any = require("heic2any");
-        heic2any({ blob: file, toType: "image/jpeg" })
-          .then((blob: Blob) => {
-            reader.readAsDataURL(blob);
-          })
-          .catch((e: any) => {
-            reject(e);
-          });
-      } catch (e) {
-        reject(e);
-      }
+      import("heic2any")
+        .then((module) => {
+          const heic2any = module.default;
+          return heic2any({ blob: file, toType: "image/jpeg" });
+        })
+        .then((blob) => {
+          reader.readAsDataURL(blob as Blob);
+        })
+        .catch((e: any) => {
+          reject(e);
+        });
+      return;
     }
 
     reader.readAsDataURL(file);
