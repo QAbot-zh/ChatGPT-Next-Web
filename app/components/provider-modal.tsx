@@ -575,6 +575,7 @@ export function ProviderModal(props: ProviderModalProps) {
         const modelNames = modelsStr
           .replace("-all,", "")
           .split(",")
+          .map((v) => v.trim())
           .filter(Boolean);
 
         fetchedModels = modelNames.map((modelName) => {
