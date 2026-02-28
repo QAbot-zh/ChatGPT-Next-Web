@@ -205,6 +205,8 @@ function ExpansionRulesModal(props: { onClose: () => void }) {
     useState<Partial<TextExpansionRule> | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const rulesStore = useExpansionRulesStore();
+  const config = useAppConfig();
+  const triggerPrefix = config.expansionTriggerPrefix;
   const userRules = rulesStore.getUserRules();
   const builtinRules = rulesStore.builtinRules;
 
@@ -399,7 +401,9 @@ function ExpansionRulesModal(props: { onClose: () => void }) {
                 >
                   <div className={styles["expansion-rule-content"]}>
                     <div className={styles["expansion-rule-title"]}>
-                      {rule.trigger}
+                      {rule.trigger.startsWith(":") && triggerPrefix !== ":"
+                        ? triggerPrefix + rule.trigger.slice(1)
+                        : rule.trigger}
                     </div>
                     <div className={styles["expansion-rule-desc"]}>
                       {rule.description || rule.replacement}
@@ -2026,6 +2030,26 @@ export function Settings() {
               )
             }
           />
+        </ListItem>
+
+        <ListItem
+          title={Locale.Settings.Expansion.TriggerPrefixTitle}
+          subTitle={Locale.Settings.Expansion.TriggerPrefixSubTitle}
+        >
+          <Select
+            value={config.expansionTriggerPrefix}
+            onChange={(e) =>
+              config.update(
+                (config) => (config.expansionTriggerPrefix = e.target.value),
+              )
+            }
+          >
+            {[":", ";", "/", "!", "#", "~"].map((prefix) => (
+              <option key={prefix} value={prefix}>
+                {prefix}
+              </option>
+            ))}
+          </Select>
         </ListItem>
 
         <ListItem

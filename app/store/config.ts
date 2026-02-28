@@ -57,6 +57,7 @@ export const DEFAULT_CONFIG = {
   enableShowUserContinuePrompt: false,
   customUserContinuePrompt: "",
   enableTextExpansion: true,
+  expansionTriggerPrefix: ":" as string,
 
   dontShowMaskSplashScreen: true, // dont show splash screen when create chat
   hideBuiltinMasks: false, // dont add builtin masks

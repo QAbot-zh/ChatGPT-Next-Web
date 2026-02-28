@@ -710,6 +710,8 @@ const en: LocaleType = {
       NoUserRules: "No user-defined rules yet",
       EnabledTitle: "Enable Text Expansion",
       EnabledSubTitle: "Toggle automatic text replacement",
+      TriggerPrefixTitle: "Trigger Prefix",
+      TriggerPrefixSubTitle: "Prefix character for built-in rule triggers",
       SelectAll: "Select All",
       UnselectAll: "Unselect All",
     },

@@ -2874,7 +2874,7 @@ function ChatComponent() {
       else {
         const enabledRules = useExpansionRulesStore
           .getState()
-          .getEnabledRules();
+          .getEnabledRulesWithPrefix(config.expansionTriggerPrefix);
         for (const rule of enabledRules) {
           if (text.endsWith(rule.trigger)) {
             const beforeTrigger = text.slice(

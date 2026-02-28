@@ -683,6 +683,8 @@ const cn = {
       NoUserRules: "暂无用户自定义规则",
       EnabledTitle: "启用快捷输入",
       EnabledSubTitle: "是否启用自动文本替换功能",
+      TriggerPrefixTitle: "触发前缀",
+      TriggerPrefixSubTitle: "内置规则的触发前缀字符",
       SelectAll: "全选",
       UnselectAll: "取消全选",
     },

@@ -76,6 +76,21 @@ export const useExpansionRulesStore = createPersistStore(
       return [...userRules, ...builtinRules];
     },
 
+    // 获取启用规则，并将内置规则的触发前缀替换为指定字符
+    getEnabledRulesWithPrefix(prefix: string) {
+      const userRules = this.getUserRules().filter((r) => r.enable);
+      const builtinRules = get()
+        .builtinRules.filter((r) => r.enable)
+        .map((r) => ({
+          ...r,
+          trigger:
+            r.trigger.startsWith(":") && prefix !== ":"
+              ? prefix + r.trigger.slice(1)
+              : r.trigger,
+        }));
+      return [...userRules, ...builtinRules];
+    },
+
     // 设置内置规则
     setBuiltinRules(rules: TextExpansionRule[]) {
       set(() => ({ builtinRules: rules }));
