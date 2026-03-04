@@ -260,9 +260,11 @@ export const VISION_MODEL_REGEXES = [
   /glm-4(?:\.\d+)?v/,
   /pixtral/,
   /kimi-latest/,
-  /multimodal/,
-  /llama-4/,
+  /kimi-k2.5/i,
+  /multimodal/i,
+  /llama-4/i,
   /grok-4/i,
+  /qwen3.5/i,
 ];
 
 export const EXCLUDE_VISION_MODEL_REGEXES = [/claude-3-5-haiku-20241022/];
