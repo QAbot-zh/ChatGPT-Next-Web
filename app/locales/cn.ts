@@ -823,6 +823,14 @@ const cn = {
     Success: "已写入剪切板",
     Failed: "复制失败，请赋予剪切板权限",
   },
+  Formula: {
+    CopyLatex: "复制为 LaTeX",
+    CopyMathML: "复制为 MathML（Word 格式）",
+    CopyRaw: "复制为纯公式",
+    ViewLarge: "查看放大公式",
+    CopySuccess: "公式已复制",
+    CopyFailed: "复制失败",
+  },
   Download: {
     Success: "内容已下载到您的目录",
     Failed: "下载失败",

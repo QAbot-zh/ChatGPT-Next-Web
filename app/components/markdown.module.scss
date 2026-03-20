@@ -665,3 +665,111 @@
     gap: 20px;
   }
 }
+
+// Formula hover highlight (scoped under local class for CSS Modules purity)
+.formula-container {
+  :global(.formula-hover) {
+    box-shadow: 0 0 0 2px rgba(49, 94, 248, 0.35);
+    background-color: rgba(49, 94, 248, 0.06);
+    border-radius: 4px;
+    cursor: pointer !important;
+    transition: all 0.2s ease;
+  }
+}
+
+// Formula copy backdrop (click-outside-to-close)
+.formula-copy-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 998;
+}
+
+// Formula copy menu
+.formula-copy-menu {
+  position: fixed;
+  z-index: 999;
+  background: var(--white);
+  border: var(--border-in-light);
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  min-width: 180px;
+  animation: slide-in ease 0.15s;
+}
+
+.formula-copy-item {
+  padding: 8px 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--black);
+  white-space: nowrap;
+  transition: all 0.15s;
+
+  &:hover {
+    background: var(--hover-color);
+  }
+}
+
+// Formula preview modal
+.formula-preview-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.formula-preview-card {
+  background: var(--white);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow: auto;
+  padding: 32px;
+  animation: slide-in ease 0.3s;
+}
+
+.formula-preview-rendered {
+  font-size: 2em;
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+  overflow-x: auto;
+}
+
+.formula-preview-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.formula-preview-btn {
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--black);
+  background: var(--white);
+  border: var(--border-in-light);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--hover-color);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+}

@@ -1,6 +1,7 @@
 // import hljs from "highlight.js";
 import ReactMarkdown from "react-markdown";
 import "katex/dist/katex.min.css";
+import katex from "katex";
 import RemarkMath from "remark-math";
 import RemarkBreaks from "remark-breaks";
 import RehypeKatex from "rehype-katex";
@@ -19,12 +20,13 @@ import {
 } from "react";
 import { copyToClipboard, downloadAs, useWindowSize } from "../utils";
 import mermaid from "mermaid";
+import temml from "temml";
 import Locale from "../locales";
 import LoadingIcon from "../icons/three-dots.svg";
 import ReloadButtonIcon from "../icons/reload.svg";
 import React from "react";
 // import { useDebouncedCallback } from "use-debounce";
-import { showImageModal, FullScreen } from "./ui-lib";
+import { showImageModal, showToast, FullScreen } from "./ui-lib";
 import {
   HTMLPreview,
   HTMLPreviewHander,
@@ -1615,6 +1617,314 @@ function ImagePreview({ src }: { src: string }) {
 type ImgProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   src: string; // 强制 src 为 string
 };
+
+// ========== Formula Copy Helpers ==========
+
+const MATHML_NS = "http://www.w3.org/1998/Math/MathML";
+
+function stripMathDelimiters(formula: string): string {
+  const t = formula.trim();
+  if (t.startsWith("$$") && t.endsWith("$$")) return t.slice(2, -2);
+  if (t.startsWith("\\[") && t.endsWith("\\]")) return t.slice(2, -2);
+  if (t.startsWith("\\(") && t.endsWith("\\)")) return t.slice(2, -2);
+  if (t.startsWith("$") && t.endsWith("$")) return t.slice(1, -1);
+  return formula;
+}
+
+function stripAttributes(root: Element): void {
+  root.removeAttribute("class");
+  root.removeAttribute("style");
+  for (const el of Array.from(root.getElementsByTagName("*"))) {
+    el.removeAttribute("class");
+    el.removeAttribute("style");
+  }
+}
+
+function cloneWithMmlPrefix(doc: Document, node: Node): Node {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return doc.createTextNode(node.nodeValue ?? "");
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return doc.importNode(node, true);
+  }
+  const el = node as Element;
+  const isMathML = el.namespaceURI === MATHML_NS || el.namespaceURI === null;
+  const qualifiedName = isMathML ? `mml:${el.localName}` : el.tagName;
+  const newEl = isMathML
+    ? doc.createElementNS(MATHML_NS, qualifiedName)
+    : doc.createElement(qualifiedName);
+
+  for (const attr of Array.from(el.attributes)) {
+    if (attr.name.startsWith("xmlns")) continue;
+    newEl.setAttribute(attr.name, attr.value);
+  }
+  for (const child of Array.from(el.childNodes)) {
+    newEl.appendChild(cloneWithMmlPrefix(doc, child));
+  }
+  return newEl;
+}
+
+function toWordMathML(mathML: string): string {
+  const parsed = new DOMParser().parseFromString(mathML, "application/xml");
+  if (parsed.getElementsByTagName("parsererror").length > 0) return mathML;
+
+  const root = parsed.documentElement;
+  if (root.localName !== "math") return mathML;
+
+  // Remove annotations
+  for (const ann of Array.from(root.getElementsByTagName("annotation"))) {
+    ann.parentNode?.removeChild(ann);
+  }
+  for (const annXml of Array.from(
+    root.getElementsByTagName("annotation-xml"),
+  )) {
+    annXml.parentNode?.removeChild(annXml);
+  }
+
+  // Unwrap semantics
+  const semantics = Array.from(root.getElementsByTagName("semantics")).find(
+    (node) => node.parentElement === root,
+  );
+  if (semantics) {
+    const presentation = semantics.firstElementChild;
+    if (presentation) {
+      while (root.firstChild) root.removeChild(root.firstChild);
+      root.appendChild(presentation);
+    }
+  }
+
+  stripAttributes(root);
+
+  // Rebuild with mml: prefix for Word compatibility
+  const output = document.implementation.createDocument(
+    MATHML_NS,
+    "mml:math",
+    null,
+  );
+  const outputRoot = output.documentElement;
+  for (const attr of Array.from(root.attributes)) {
+    if (attr.name.startsWith("xmlns")) continue;
+    outputRoot.setAttribute(attr.name, attr.value);
+  }
+  for (const child of Array.from(root.childNodes)) {
+    outputRoot.appendChild(cloneWithMmlPrefix(output, child));
+  }
+  return new XMLSerializer().serializeToString(outputRoot);
+}
+
+function wrapMathMLForWordHtml(mathML: string): string {
+  return [
+    `<html xmlns:mml="${MATHML_NS}">`,
+    '<head><meta charset="utf-8"></head>',
+    "<body><!--StartFragment-->",
+    mathML,
+    "<!--EndFragment--></body></html>",
+  ].join("");
+}
+
+function convertToWordMathML(latex: string, isDisplay: boolean): string {
+  const stripped = stripMathDelimiters(latex);
+  const rawMathML = temml.renderToString(stripped, {
+    displayMode: isDisplay,
+    xml: true,
+    annotate: false,
+    throwOnError: true,
+    colorIsTextColor: true,
+    trust: false,
+  });
+  // Ensure xmlns is present
+  const withNs = rawMathML.includes("xmlns=")
+    ? rawMathML
+    : rawMathML.replace("<math", `<math xmlns="${MATHML_NS}"`);
+  return toWordMathML(withNs);
+}
+
+// ========== Formula Copy Menu ==========
+
+type FormulaMenuState = {
+  x: number;
+  y: number;
+  latex: string;
+  isDisplay: boolean;
+};
+
+function FormulaCopyMenu(
+  props: FormulaMenuState & {
+    onClose: () => void;
+    onPreview: () => void;
+  },
+) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: props.x, y: props.y });
+
+  // Adjust position to stay within viewport
+  useEffect(() => {
+    if (!menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let x = props.x;
+    let y = props.y;
+    if (x + rect.width > vw - 8) x = vw - rect.width - 8;
+    if (y + rect.height > vh - 8) y = vh - rect.height - 8;
+    if (x < 8) x = 8;
+    if (y < 8) y = 8;
+
+    setPosition({ x, y });
+  }, [props.x, props.y]);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") props.onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [props.onClose]);
+
+  const handleCopyLatex = () => {
+    const text = props.isDisplay ? `$$${props.latex}$$` : `$${props.latex}$`;
+    copyToClipboard(text);
+    props.onClose();
+  };
+
+  const handleCopyMathML = async () => {
+    try {
+      const mathml = convertToWordMathML(props.latex, props.isDisplay);
+      const html = wrapMathMLForWordHtml(mathml);
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([mathml], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" }),
+        }),
+      ]);
+      showToast(Locale.Formula.CopySuccess);
+    } catch {
+      showToast(Locale.Formula.CopyFailed);
+    }
+    props.onClose();
+  };
+
+  const handleCopyRaw = () => {
+    copyToClipboard(props.latex);
+    props.onClose();
+  };
+
+  return (
+    <>
+      <div
+        className={styles["formula-copy-backdrop"]}
+        onClick={props.onClose}
+      />
+      <div
+        ref={menuRef}
+        className={styles["formula-copy-menu"]}
+        style={{ left: position.x, top: position.y }}
+      >
+        <div className={styles["formula-copy-item"]} onClick={props.onPreview}>
+          {Locale.Formula.ViewLarge}
+        </div>
+        <div className={styles["formula-copy-item"]} onClick={handleCopyLatex}>
+          {Locale.Formula.CopyLatex}
+        </div>
+        <div className={styles["formula-copy-item"]} onClick={handleCopyMathML}>
+          {Locale.Formula.CopyMathML}
+        </div>
+        <div className={styles["formula-copy-item"]} onClick={handleCopyRaw}>
+          {Locale.Formula.CopyRaw}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ========== Formula Preview Modal ==========
+
+function FormulaPreviewModal(props: {
+  latex: string;
+  isDisplay: boolean;
+  onClose: () => void;
+}) {
+  const renderedHtml = useMemo(() => {
+    try {
+      return katex.renderToString(props.latex, {
+        displayMode: true,
+        throwOnError: false,
+      });
+    } catch {
+      return `<span style="color:red">Render error</span>`;
+    }
+  }, [props.latex]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") props.onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [props.onClose]);
+
+  const handleCopyLatex = () => {
+    const text = props.isDisplay ? `$$${props.latex}$$` : `$${props.latex}$`;
+    copyToClipboard(text);
+  };
+
+  const handleCopyMathML = async () => {
+    try {
+      const mathml = convertToWordMathML(props.latex, props.isDisplay);
+      const html = wrapMathMLForWordHtml(mathml);
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([mathml], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" }),
+        }),
+      ]);
+      showToast(Locale.Formula.CopySuccess);
+    } catch {
+      showToast(Locale.Formula.CopyFailed);
+    }
+  };
+
+  const handleCopyRaw = () => {
+    copyToClipboard(props.latex);
+  };
+
+  return (
+    <div className={styles["formula-preview-overlay"]} onClick={props.onClose}>
+      <div
+        className={styles["formula-preview-card"]}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className={styles["formula-preview-rendered"]}
+          dangerouslySetInnerHTML={{ __html: renderedHtml }}
+        />
+        <div className={styles["formula-preview-actions"]}>
+          <button
+            className={styles["formula-preview-btn"]}
+            onClick={handleCopyLatex}
+          >
+            {Locale.Formula.CopyLatex}
+          </button>
+          <button
+            className={styles["formula-preview-btn"]}
+            onClick={handleCopyMathML}
+          >
+            {Locale.Formula.CopyMathML}
+          </button>
+          <button
+            className={styles["formula-preview-btn"]}
+            onClick={handleCopyRaw}
+          >
+            {Locale.Formula.CopyRaw}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function R_MarkDownContent(props: {
   content: string;
   searchingTime?: number;
@@ -1798,10 +2108,74 @@ export function Markdown(
   } & React.DOMAttributes<HTMLDivElement>,
 ) {
   const mdRef = useRef<HTMLDivElement>(null);
+  const isStreaming = !!props.status;
+  const [formulaMenu, setFormulaMenu] = useState<FormulaMenuState | null>(null);
+  const [formulaPreview, setFormulaPreview] = useState<{
+    latex: string;
+    isDisplay: boolean;
+  } | null>(null);
+
+  // Formula hover + click event delegation (only when not streaming)
+  useEffect(() => {
+    if (isStreaming || !mdRef.current) return;
+    const container = mdRef.current;
+    let hoveredEl: HTMLElement | null = null;
+
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const katex = target.closest(".katex") as HTMLElement | null;
+      if (katex && katex !== hoveredEl) {
+        hoveredEl?.classList.remove("formula-hover");
+        katex.classList.add("formula-hover");
+        hoveredEl = katex;
+      }
+    };
+
+    const handleMouseOut = (e: MouseEvent) => {
+      if (!hoveredEl) return;
+      const related = e.relatedTarget as HTMLElement | null;
+      if (!related || !hoveredEl.contains(related)) {
+        hoveredEl.classList.remove("formula-hover");
+        hoveredEl = null;
+      }
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const katex = target.closest(".katex") as HTMLElement | null;
+      if (!katex) return;
+
+      const annotation = katex.querySelector(
+        'annotation[encoding="application/x-tex"]',
+      );
+      if (!annotation?.textContent) return;
+
+      const latex = annotation.textContent.trim();
+      const isDisplay = !!katex.closest(".katex-display");
+
+      setFormulaMenu({
+        x: e.clientX,
+        y: e.clientY,
+        latex,
+        isDisplay,
+      });
+    };
+
+    container.addEventListener("mouseover", handleMouseOver);
+    container.addEventListener("mouseout", handleMouseOut);
+    container.addEventListener("click", handleClick);
+
+    return () => {
+      hoveredEl?.classList.remove("formula-hover");
+      container.removeEventListener("mouseover", handleMouseOver);
+      container.removeEventListener("mouseout", handleMouseOut);
+      container.removeEventListener("click", handleClick);
+    };
+  }, [isStreaming]);
 
   return (
     <div
-      className="markdown-body"
+      className={`markdown-body ${styles["formula-container"]}`}
       ref={mdRef}
       onContextMenu={props.onContextMenu}
       onDoubleClickCapture={props.onDoubleClickCapture}
@@ -1811,12 +2185,30 @@ export function Markdown(
         <LoadingIcon />
       ) : (
         <MarkdownContent
-          // key={processedContent}
           content={props.content}
           searchingTime={props.searchingTime}
           thinkingTime={props.thinkingTime}
           fontSize={props.fontSize}
           status={props.status}
+        />
+      )}
+      {formulaMenu && (
+        <FormulaCopyMenu
+          {...formulaMenu}
+          onClose={() => setFormulaMenu(null)}
+          onPreview={() => {
+            setFormulaPreview({
+              latex: formulaMenu.latex,
+              isDisplay: formulaMenu.isDisplay,
+            });
+            setFormulaMenu(null);
+          }}
+        />
+      )}
+      {formulaPreview && (
+        <FormulaPreviewModal
+          {...formulaPreview}
+          onClose={() => setFormulaPreview(null)}
         />
       )}
     </div>

@@ -865,6 +865,14 @@ const en: LocaleType = {
     Success: "Copied to clipboard",
     Failed: "Copy failed, please grant permission to access clipboard",
   },
+  Formula: {
+    CopyLatex: "Copy LaTeX",
+    CopyMathML: "Copy MathML (Word)",
+    CopyRaw: "Copy Raw",
+    ViewLarge: "View Formula",
+    CopySuccess: "Formula copied",
+    CopyFailed: "Copy failed",
+  },
   Download: {
     Success: "Content downloaded to your directory.",
     Failed: "Download failed.",
