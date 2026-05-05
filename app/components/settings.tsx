@@ -45,6 +45,7 @@ import {
   useAppConfig,
   useCustomProviderStore,
 } from "../store";
+import { dumpChatToLocalStorage } from "../utils/indexedDB-storage";
 
 import Locale, {
   AllLangs,
@@ -669,6 +670,67 @@ function DangerItems() {
 
   return (
     <List>
+      <ListItem
+        title={Locale.Settings.Danger.ClearUnfinished.Title}
+        subTitle={Locale.Settings.Danger.ClearUnfinished.SubTitle}
+      >
+        <IconButton
+          aria={Locale.Settings.Danger.ClearUnfinished.Title}
+          text={Locale.Settings.Danger.ClearUnfinished.Action}
+          onClick={async () => {
+            // 仅扫描"空"草稿：value 为空字符串或 null 的 unfinished-input-* 键。
+            // 修复 useEffect 后不再产生空草稿，这里清的是历史包袱。
+            // 有内容的草稿不动，避免误删用户正在编辑的内容。
+            const emptyKeys: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith("unfinished-input-")) {
+                const v = localStorage.getItem(k);
+                if (!v) emptyKeys.push(k);
+              }
+            }
+            if (emptyKeys.length === 0) {
+              showToast(Locale.Settings.Danger.ClearUnfinished.Empty);
+              return;
+            }
+            if (
+              !(await showConfirm(
+                Locale.Settings.Danger.ClearUnfinished.Confirm(
+                  emptyKeys.length,
+                ),
+              ))
+            )
+              return;
+            emptyKeys.forEach((k) => localStorage.removeItem(k));
+            showToast(
+              Locale.Settings.Danger.ClearUnfinished.Done(emptyKeys.length),
+            );
+          }}
+          type="primary"
+        />
+      </ListItem>
+      <ListItem
+        title={Locale.Settings.Danger.DumpToLS.Title}
+        subTitle={Locale.Settings.Danger.DumpToLS.SubTitle}
+      >
+        <IconButton
+          aria={Locale.Settings.Danger.DumpToLS.Title}
+          text={Locale.Settings.Danger.DumpToLS.Action}
+          onClick={async () => {
+            if (!(await showConfirm(Locale.Settings.Danger.DumpToLS.Confirm)))
+              return;
+            const r = await dumpChatToLocalStorage();
+            if (r.ok) {
+              showToast(Locale.Settings.Danger.DumpToLS.Done(r.bytes));
+            } else {
+              showToast(
+                Locale.Settings.Danger.DumpToLS.Failed(r.error ?? "unknown"),
+              );
+            }
+          }}
+          type="primary"
+        />
+      </ListItem>
       <ListItem
         title={Locale.Settings.Danger.Reset.Title}
         subTitle={Locale.Settings.Danger.Reset.SubTitle}

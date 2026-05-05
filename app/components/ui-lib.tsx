@@ -31,6 +31,7 @@ import {
   ModelGroup,
 } from "../utils/model-groups";
 import { safeLocalStorage } from "../utils";
+import { StoreKey } from "../constant";
 
 export function Popover(props: {
   children: JSX.Element;
@@ -141,9 +142,11 @@ interface ModalProps {
   defaultMax?: boolean;
   footer?: React.ReactNode;
   onClose?: () => void;
+  disableClose?: boolean;
 }
 export function Modal(props: ModalProps) {
   useEffect(() => {
+    if (props.disableClose) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         props.onClose?.();
@@ -156,7 +159,7 @@ export function Modal(props: ModalProps) {
       window.removeEventListener("keydown", onKeyDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [props.disableClose]);
 
   const [isMax, setMax] = useState(!!props.defaultMax);
 
@@ -176,12 +179,14 @@ export function Modal(props: ModalProps) {
           >
             {isMax ? <MinIcon /> : <MaxIcon />}
           </div>
-          <div
-            className={styles["modal-header-action"]}
-            onClick={props.onClose}
-          >
-            <CloseIcon />
-          </div>
+          {!props.disableClose && (
+            <div
+              className={styles["modal-header-action"]}
+              onClick={props.onClose}
+            >
+              <CloseIcon />
+            </div>
+          )}
         </div>
       </div>
 
@@ -214,7 +219,7 @@ export function showModal(props: ModalProps) {
   };
 
   div.onclick = (e) => {
-    if (e.target === div) {
+    if (e.target === div && !props.disableClose) {
       closeModal();
     }
   };
@@ -424,6 +429,7 @@ export function Input(props: InputProps) {
 export function PasswordInput(
   props: HTMLProps<HTMLInputElement> & { aria?: string },
 ) {
+  const { aria, ...rest } = props;
   const [visible, setVisible] = useState(false);
 
   function changeVisibility() {
@@ -433,13 +439,13 @@ export function PasswordInput(
   return (
     <div className={"password-input-container"}>
       <IconButton
-        aria={props.aria}
+        aria={aria}
         icon={visible ? <EyeIcon /> : <EyeOffIcon />}
         onClick={changeVisibility}
         className={"password-eye"}
       />
       <input
-        {...props}
+        {...rest}
         type={visible ? "text" : "password"}
         className={"password-input"}
       />
@@ -519,6 +525,96 @@ export function showConfirm(content: any) {
       </Modal>,
     );
   });
+}
+
+export type StorageErrorChoice = "retry" | "fallback";
+let pendingStorageErrorPromise: Promise<StorageErrorChoice> | null = null;
+
+export function showStorageErrorDialog(opts: {
+  key: string;
+  error: unknown;
+}): Promise<StorageErrorChoice> {
+  // 单例：并发的多次失败共用同一个弹窗
+  if (pendingStorageErrorPromise) return pendingStorageErrorPromise;
+
+  const div = document.createElement("div");
+  div.className = "modal-mask";
+  document.body.appendChild(div);
+  const root = createRoot(div);
+  const closeModal = () => {
+    root.unmount();
+    div.remove();
+    pendingStorageErrorPromise = null;
+  };
+
+  const L = Locale.Settings.Danger.StorageError;
+
+  // 检测 LS 中是否有 chat 备份。默认情况下不会有：只有 IDB 写入抛错回退到 LS、
+  // 或用户主动点过设置里的「刷新 IndexedDB 到 localStorage」才会留下快照。
+  const lsBackup = safeLocalStorage().getItem(StoreKey.Chat);
+  const hasBackup = !!lsBackup;
+  const backupKb = hasBackup ? (lsBackup.length / 1024).toFixed(1) : "0";
+  const fallbackText = hasBackup ? L.FallbackWithBackup : L.FallbackNoBackup;
+  const hintText = hasBackup ? L.HintWithBackup(backupKb) : L.HintNoBackup;
+
+  pendingStorageErrorPromise = new Promise<StorageErrorChoice>((resolve) => {
+    root.render(
+      <Modal
+        title={L.Title}
+        disableClose
+        footer={
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              justifyContent: "center",
+              gap: 20,
+            }}
+          >
+            <IconButton
+              text={fallbackText}
+              type="danger"
+              onClick={() => {
+                resolve("fallback");
+                closeModal();
+              }}
+              tabIndex={0}
+              bordered
+              shadow
+            />
+            <IconButton
+              text={L.Retry}
+              type="primary"
+              onClick={() => {
+                resolve("retry");
+                closeModal();
+              }}
+              icon={<ConfirmIcon />}
+              tabIndex={0}
+              autoFocus
+              bordered
+              shadow
+            />
+          </div>
+        }
+      >
+        <div style={{ lineHeight: 1.6 }}>
+          <p>{L.Description}</p>
+          <p style={{ marginTop: 12, fontWeight: 500 }}>{L.CausesTitle}</p>
+          <ul style={{ marginTop: 4, paddingLeft: 20, opacity: 0.85 }}>
+            {L.Causes.map((c, i) => (
+              <li key={i} style={{ marginTop: 4 }}>
+                {c}
+              </li>
+            ))}
+          </ul>
+          <p style={{ marginTop: 12, opacity: 0.8 }}>{hintText}</p>
+        </div>
+      </Modal>,
+    );
+  });
+
+  return pendingStorageErrorPromise;
 }
 
 function PromptInput(props: {

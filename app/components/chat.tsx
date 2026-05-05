@@ -5201,7 +5201,13 @@ function ChatComponent() {
 
     const dom = inputRef.current;
     return () => {
-      localStorage.setItem(key, dom?.value ?? "");
+      const value = dom?.value ?? "";
+      if (value.length > 0) {
+        localStorage.setItem(key, value);
+      } else {
+        // 空值不写入，避免在 LS 中累积无意义的 unfinished-input-* 键
+        localStorage.removeItem(key);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

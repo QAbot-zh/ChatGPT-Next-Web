@@ -473,6 +473,43 @@ const en: LocaleType = {
         Action: "Clear",
         Confirm: "Confirm to clear all messages and settings?",
       },
+      ClearUnfinished: {
+        Title: "Clear Empty Drafts",
+        SubTitle:
+          "Remove leftover empty unfinished-input-* keys (drafts with content are kept)",
+        Action: "Clear",
+        Empty: "No empty drafts to clear",
+        Confirm: (count: number) =>
+          `Found ${count} empty draft(s). Clear them? (Drafts with content are not affected)`,
+        Done: (n: number) => `Cleared ${n} empty drafts`,
+      },
+      DumpToLS: {
+        Title: "Flush IndexedDB to localStorage",
+        SubTitle:
+          "Snapshot chat data from IndexedDB to localStorage as an emergency backup",
+        Action: "Flush",
+        Confirm: "Overwrite the existing localStorage snapshot?",
+        Done: (bytes: number) => `Wrote ${(bytes / 1024).toFixed(1)} KB`,
+        Failed: (msg: string) =>
+          `Failed: ${msg} (may exceed localStorage quota)`,
+      },
+      StorageError: {
+        Title: "Storage Read Failure",
+        Description: "Failed to read from IndexedDB. Try Retry first.",
+        CausesTitle: "Common causes:",
+        Causes: [
+          "Multiple tabs open — DB upgrade blocked",
+          "Storage evicted or disk under pressure",
+          "Browser update/crash didn't close DB cleanly",
+        ],
+        HintWithBackup: (kb: string) =>
+          `If it still fails, fall back to the localStorage snapshot (~${kb} KB, may be older).`,
+        HintNoBackup:
+          'If it still fails, start with an empty state (no localStorage backup by default — to create one, go to Settings → "Flush IndexedDB to localStorage").',
+        Retry: "Retry (Recommended)",
+        FallbackWithBackup: "Fall back to localStorage",
+        FallbackNoBackup: "Start with empty state",
+      },
     },
     Lang: {
       Name: "Language", // ATTENTION: if you wanna add a new translation, please do not translate this value, leave it as `Language`

@@ -447,6 +447,40 @@ const cn = {
         Action: "立即清除",
         Confirm: "确认清除所有聊天、设置数据？",
       },
+      ClearUnfinished: {
+        Title: "清理空草稿",
+        SubTitle:
+          "删除 localStorage 中残留的空 unfinished-input-* 键（不影响有内容的草稿）",
+        Action: "立即清理",
+        Empty: "当前没有空草稿",
+        Confirm: (count: number) =>
+          `找到 ${count} 条空草稿，确认清理？（不会影响有内容的草稿）`,
+        Done: (n: number) => `已清理 ${n} 条空草稿`,
+      },
+      DumpToLS: {
+        Title: "刷新 IndexedDB 到 localStorage",
+        SubTitle: "把 IDB 中的聊天数据快照写入 localStorage 作为应急备份",
+        Action: "立即刷新",
+        Confirm: "确认覆盖 localStorage 中的旧快照？",
+        Done: (bytes: number) => `已写入 ${(bytes / 1024).toFixed(1)} KB`,
+        Failed: (msg: string) => `失败：${msg}（可能超出 LS 配额）`,
+      },
+      StorageError: {
+        Title: "存储读取失败",
+        Description: "无法从 IndexedDB 读取数据，优先建议「重试」。",
+        CausesTitle: "常见原因：",
+        Causes: [
+          "多个标签页打开本应用，数据库升级被阻塞",
+          "浏览器存储被驱逐或磁盘吃紧",
+          "浏览器更新/崩溃后未正常关闭",
+        ],
+        HintWithBackup: (kb: string) =>
+          `若仍失败，可回滚到 localStorage 备份（约 ${kb} KB，可能较旧）。`,
+        HintNoBackup: "若仍失败，可空状态启动（当前无 localStorage 备份）。",
+        Retry: "重试（推荐）",
+        FallbackWithBackup: "回滚到 localStorage",
+        FallbackNoBackup: "空状态启动",
+      },
     },
     Lang: {
       Name: "当前语言", // ATTENTION: if you wanna add a new translation, please do not translate this value, leave it as `Language`

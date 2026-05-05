@@ -31,7 +31,10 @@ import { estimateTokenLengthInLLM } from "../utils/token";
 import { nanoid } from "nanoid";
 import { createPersistStore } from "../utils/store";
 import { safeLocalStorage, readFileContent } from "../utils";
-import { indexedDBStorage } from "@/app/utils/indexedDB-storage";
+import {
+  indexedDBStorage,
+  autoBackupChatToLocalStorage,
+} from "@/app/utils/indexedDB-storage";
 import { useAccessStore } from "./access";
 import { ServiceProvider } from "../constant";
 
@@ -2011,6 +2014,15 @@ export const useChatStore = createPersistStore(
   {
     name: StoreKey.Chat,
     version: 3.8,
+    onRehydrateStorage() {
+      // 水合完成后做一次自动备份：把 IDB 中的 chat 数据快照写入 localStorage。
+      // 用 setTimeout 推到 microtask 之外，避免阻塞首屏渲染。
+      return () => {
+        setTimeout(() => {
+          autoBackupChatToLocalStorage();
+        }, 0);
+      };
+    },
     migrate(persistedState, version) {
       const state = persistedState as any;
       const newState = JSON.parse(

@@ -1,8 +1,31 @@
 import { StateStorage } from "zustand/middleware";
 import { get, set, del, clear, promisifyRequest } from "idb-keyval";
 import { safeLocalStorage } from "../utils";
+import { StoreKey } from "../constant";
 
 const localStorage = safeLocalStorage();
+
+// 动态加载弹窗，避免与 ui-lib → store → 本文件 之间形成循环依赖。
+// 仅在 IDB 真正抛错时才需要，此时延迟一次 import 不影响首屏。
+async function askUserOnStorageError(opts: {
+  key: string;
+  error: unknown;
+}): Promise<"retry" | "fallback"> {
+  const mod = await import("../components/ui-lib");
+  return mod.showStorageErrorDialog(opts);
+}
+
+// 多 store 并发失败时聚合日志：1s 内同一错误信息只打一条。
+let lastErrorLogAt = 0;
+let lastErrorMsg = "";
+function logIDBError(name: string, error: unknown) {
+  const msg = (error as any)?.message ?? String(error);
+  const now = Date.now();
+  if (msg === lastErrorMsg && now - lastErrorLogAt < 1000) return;
+  lastErrorMsg = msg;
+  lastErrorLogAt = now;
+  console.warn(`[IDB getItem] read failed: "${name}" — ${msg}`);
+}
 
 function createStrictStore(dbName: string, storeName: string) {
   let dbp: IDBDatabase | undefined;
@@ -114,12 +137,27 @@ class IndexedDBStorage implements StateStorage {
       const value = this.pending.get(name)!;
       return value === null ? null : value;
     }
-    try {
-      const value =
-        (await get<string>(name, strictStore)) ?? localStorage.getItem(name);
-      return value ?? null;
-    } catch (error) {
-      return localStorage.getItem(name);
+    // 关键：把「IDB 抛错（DB 损坏 / 被驱逐 / 权限拒绝）」与
+    // 「IDB 正常但 key 不存在（首次进入或迁移场景）」区分开。
+    // 前者必须阻塞，让用户决定，绝不静默回退到 LS 旧快照覆盖真实状态。
+    while (true) {
+      let idbValue: string | undefined;
+      try {
+        idbValue = await get<string>(name, strictStore);
+      } catch (error) {
+        logIDBError(name, error);
+        // SSR / 非浏览器环境下没有 document，无法弹窗，直接走 LS 兜底（server 端通常返回 null）。
+        if (typeof window === "undefined" || typeof document === "undefined") {
+          return localStorage.getItem(name);
+        }
+        const choice = await askUserOnStorageError({ key: name, error });
+        if (choice === "retry") continue; // 重新尝试 indexedDB.open
+        // 用户主动选择回滚到 LS 旧快照，已知风险
+        return localStorage.getItem(name);
+      }
+      // IDB 正常但 key 不存在 —— 走 LS 兜底（用于迁移/首次启动）
+      if (idbValue === undefined) return localStorage.getItem(name);
+      return idbValue;
     }
   }
 
@@ -152,3 +190,67 @@ class IndexedDBStorage implements StateStorage {
 }
 
 export const indexedDBStorage = new IndexedDBStorage();
+
+/**
+ * 把 IndexedDB 中的 chat 数据快照写入 localStorage，作为应急备份。
+ * 当 IDB 在浏览器更新或磁盘吃紧时被驱逐，LS 中的快照可作为最近一次手动备份恢复。
+ * - 调用前会先 flush 当前 pending 写入，确保拿到最新状态。
+ * - 仅写 StoreKey.Chat（聊天数据）—— 控制 LS 占用，避免触发 5MB 配额。
+ * - 超过 4MB 直接跳过：避免悄悄写失败留下半截数据。
+ */
+export async function dumpChatToLocalStorage(): Promise<{
+  ok: boolean;
+  bytes: number;
+  skipped?: boolean;
+  error?: string;
+}> {
+  await indexedDBStorage.flushPending();
+  try {
+    const value = await get<string>(StoreKey.Chat, strictStore);
+    if (!value) return { ok: false, bytes: 0, error: "IDB 中无聊天数据" };
+    if (value.length > 4 * 1024 * 1024) {
+      return {
+        ok: false,
+        bytes: value.length,
+        skipped: true,
+        error: `${(value.length / 1024 / 1024).toFixed(
+          2,
+        )} MB 超过 4MB 安全阈值`,
+      };
+    }
+    try {
+      localStorage.setItem(StoreKey.Chat, value);
+    } catch (writeErr: any) {
+      return {
+        ok: false,
+        bytes: value.length,
+        error: writeErr?.message ?? String(writeErr),
+      };
+    }
+    return { ok: true, bytes: value.length };
+  } catch (e: any) {
+    return { ok: false, bytes: 0, error: e?.message ?? String(e) };
+  }
+}
+
+/**
+ * 启动后自动备份 chat 到 LS：仅在水合成功后调用一次，安静失败不打扰用户。
+ */
+export async function autoBackupChatToLocalStorage(): Promise<void> {
+  try {
+    const r = await dumpChatToLocalStorage();
+    if (process.env.NODE_ENV === "development") {
+      if (r.ok) {
+        console.log(
+          `[auto backup] chat → LS: ${(r.bytes / 1024).toFixed(1)} KB`,
+        );
+      } else if (r.skipped) {
+        console.warn(`[auto backup] skipped: ${r.error}`);
+      } else if (r.error && r.error !== "IDB 中无聊天数据") {
+        console.warn(`[auto backup] failed: ${r.error}`);
+      }
+    }
+  } catch {
+    // 静默：备份永远不应阻塞主流程
+  }
+}

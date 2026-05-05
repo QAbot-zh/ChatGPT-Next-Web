@@ -37,8 +37,12 @@ export function createPersistStore<T extends object, M>(
   persistOptions.storage = createJSONStorage(() => indexedDBStorage);
   const oldOonRehydrateStorage = persistOptions?.onRehydrateStorage;
   persistOptions.onRehydrateStorage = (state) => {
-    oldOonRehydrateStorage?.(state);
-    return () => state.setHasHydrated(true);
+    // 旧 hook 可能返回 (rehydratedState, err) => void，需要把它和我们自己的串起来
+    const oldPostHydrate = oldOonRehydrateStorage?.(state);
+    return (rehydratedState, err) => {
+      oldPostHydrate?.(rehydratedState, err);
+      state.setHasHydrated(true);
+    };
   };
 
   return create(
@@ -68,7 +72,7 @@ export function createPersistStore<T extends object, M>(
             },
             setHasHydrated: (state: boolean) => {
               set({ _hasHydrated: state } as Partial<T & MakeUpdater<T>>);
-            }
+            },
           } as M & MakeUpdater<T>;
         },
       ),

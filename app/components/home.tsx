@@ -29,7 +29,7 @@ import { useAppConfig } from "../store/config";
 import { AuthPage } from "./auth";
 import { getClientConfig } from "../config/client";
 import { ClientApi } from "../client/api";
-import { useAccessStore } from "../store";
+import { useAccessStore, useChatStore } from "../store";
 import { identifyDefaultClaudeModel } from "../utils/checkers";
 import { FloatingButton } from "./floating-button";
 import { CustomCssProvider } from "./CustomCssProvider";
@@ -150,13 +150,18 @@ function useHtmlLang() {
 }
 
 const useHasHydrated = () => {
-  const [hasHydrated, setHasHydrated] = useState<boolean>(false);
+  const [mounted, setMounted] = useState<boolean>(false);
 
   useEffect(() => {
-    setHasHydrated(true);
+    setMounted(true);
   }, []);
 
-  return hasHydrated;
+  // 关键：必须等 chat / config 这两个核心 store 真正水合完成才放行渲染。
+  // 否则 IDB 读取异常时弹窗虽然弹出，但 Home 已经用默认 state 渲染了。
+  const chatHydrated = useChatStore((s) => s._hasHydrated);
+  const configHydrated = useAppConfig((s) => s._hasHydrated);
+
+  return mounted && chatHydrated && configHydrated;
 };
 
 function Screen() {
