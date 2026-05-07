@@ -62,7 +62,6 @@ import AttachmentIcon from "../icons/paperclip.svg";
 import ToolboxIcon from "../icons/toolbox.svg";
 import EraserIcon from "../icons/eraser.svg";
 import DualModelIcon from "../icons/dual-model.svg";
-import TreeIcon from "../icons/tree.svg";
 import ConfigIcon from "../icons/config.svg";
 
 import {
@@ -231,6 +230,42 @@ async function buildRetryRequestContent(
       })),
     );
   }
+
+  return contentParts;
+}
+
+function buildRetryDisplayContent(
+  userMessage: ChatMessage,
+  textContent: string,
+  attachFiles: UploadFile[],
+) {
+  const images = getMessageImages(userMessage);
+  const hasAttachments = attachFiles.length > 0 || images.length > 0;
+  if (!hasAttachments) return textContent;
+
+  const contentParts: MultimodalContent[] = [
+    { type: "text", text: textContent },
+  ];
+
+  contentParts.push(
+    ...attachFiles.map((file) => ({
+      type: "file_url" as const,
+      file_url: {
+        url: file.url,
+        name: file.name,
+        contentType: file.contentType,
+        size: file.size,
+        tokenCount: file.tokenCount,
+      },
+    })),
+  );
+
+  contentParts.push(
+    ...images.map((url) => ({
+      type: "image_url" as const,
+      image_url: { url },
+    })),
+  );
 
   return contentParts;
 }
@@ -461,8 +496,55 @@ export function PromptHints(props: {
   );
 }
 
-// function ClearContextDivider() {
-function ClearContextDivider(props: { index: number; isSecondary?: boolean }) {
+function recomputeClearContextIndex(session: ChatSession, isSecondary = false) {
+  const messages = isSecondary
+    ? session.secondaryMessages ?? []
+    : session.messages;
+  const clearIndex = messages.reduce<number | undefined>(
+    (index, message, i) => (message.beClear ? i + 1 : index),
+    undefined,
+  );
+
+  if (isSecondary) {
+    session.secondaryClearContextIndex = clearIndex;
+  } else {
+    session.clearContextIndex = clearIndex;
+  }
+}
+
+function toggleClearContextBoundary(
+  session: ChatSession,
+  messageId: string,
+  isSecondary = false,
+) {
+  const messages = isSecondary
+    ? session.secondaryMessages ?? []
+    : session.messages;
+  const target = messages.find((message) => message.id === messageId);
+  if (!target) return;
+
+  target.beClear = !target.beClear;
+
+  if (target.beClear) {
+    // 刚设置 beClear 时清除该位置之后的 memory
+    const idx = messages.indexOf(target);
+    const hasLaterClear = messages.slice(idx + 1).some((m) => m.beClear);
+    if (!hasLaterClear) {
+      if (isSecondary) {
+        session.secondaryMemoryPrompt = "";
+      } else {
+        session.memoryPrompt = "";
+      }
+    }
+  }
+
+  recomputeClearContextIndex(session, isSecondary);
+}
+
+function ClearContextDivider(props: {
+  messageId: string;
+  isSecondary?: boolean;
+}) {
   const chatStore = useChatStore();
   const session = chatStore.currentSession();
   return (
@@ -470,24 +552,15 @@ function ClearContextDivider(props: { index: number; isSecondary?: boolean }) {
       className={styles["clear-context"]}
       onClick={() =>
         chatStore.updateTargetSession(session, (session) => {
-          if (props.isSecondary) {
-            // 副模型：清除副模型的 beClear 和 index
-            session.secondaryClearContextIndex = undefined;
-            if (session.secondaryMessages) {
-              for (let i = session.secondaryMessages.length - 1; i >= 0; i--) {
-                if (session.secondaryMessages[i]?.beClear) {
-                  session.secondaryMessages[i].beClear = false;
-                  break;
-                }
-              }
-            }
-          } else {
-            // 主模型
-            session.clearContextIndex = undefined;
-            if (props.index > 0 && session.messages[props.index - 1]) {
-              session.messages[props.index - 1].beClear = false;
-            }
-          }
+          const messages = props.isSecondary
+            ? session.secondaryMessages ?? []
+            : session.messages;
+          const message = messages.find(
+            (message) => message.id === props.messageId,
+          );
+          if (!message) return;
+          message.beClear = false;
+          recomputeClearContextIndex(session, props.isSecondary);
         })
       }
     >
@@ -1612,51 +1685,28 @@ export function ChatActions(props: {
           />
         )}
 
-        {!session.enableMessageTree && (
-          <ChatAction
-            text={Locale.Chat.InputActions.Clear}
-            icon={<BreakIcon />}
-            onClick={() => {
-              chatStore.updateTargetSession(session, (session) => {
-                // 主模型
-                const lastMessage =
-                  session.messages[session.messages.length - 1];
-                if (lastMessage) {
-                  if (lastMessage?.beClear) {
-                    session.clearContextIndex = undefined;
-                    lastMessage.beClear = false;
-                  } else {
-                    session.clearContextIndex = session.messages.length;
-                    lastMessage.beClear = true;
-                    session.memoryPrompt = "";
-                  }
-                }
+        <ChatAction
+          text={Locale.Chat.InputActions.Clear}
+          icon={<BreakIcon />}
+          onClick={() => {
+            chatStore.updateTargetSession(session, (session) => {
+              const lastMessage = session.messages[session.messages.length - 1];
+              if (lastMessage) {
+                toggleClearContextBoundary(session, lastMessage.id);
+              }
 
-                // 副模型——独立处理
-                if (
-                  session.dualModelMode &&
-                  session.secondaryMessages?.length
-                ) {
-                  const lastSecondary =
-                    session.secondaryMessages[
-                      session.secondaryMessages.length - 1
-                    ];
-                  if (lastSecondary) {
-                    if (lastSecondary.beClear) {
-                      session.secondaryClearContextIndex = undefined;
-                      lastSecondary.beClear = false;
-                    } else {
-                      session.secondaryClearContextIndex =
-                        session.secondaryMessages.length;
-                      lastSecondary.beClear = true;
-                      session.secondaryMemoryPrompt = "";
-                    }
-                  }
+              if (session.dualModelMode && session.secondaryMessages?.length) {
+                const lastSecondary =
+                  session.secondaryMessages[
+                    session.secondaryMessages.length - 1
+                  ];
+                if (lastSecondary) {
+                  toggleClearContextBoundary(session, lastSecondary.id, true);
                 }
-              });
-            }}
-          />
-        )}
+              }
+            });
+          }}
+        />
         <ChatAction
           text={Locale.Chat.InputActions.Continue.Title}
           icon={<ContinueIcon />}
@@ -2139,13 +2189,11 @@ function ChatInputActions(props: {
             icon={<EditToInputIcon />}
             onClick={() => setUserInput(getMessageTextContent(message))}
           />
-          {!hideRemovalActions && (
-            <ChatAction
-              text={Locale.Chat.InputActions.Clear}
-              icon={<BreakIcon />}
-              onClick={() => onBreak(message.id ?? i)}
-            />
-          )}
+          <ChatAction
+            text={Locale.Chat.InputActions.Clear}
+            icon={<BreakIcon />}
+            onClick={() => onBreak(message.id ?? i)}
+          />
         </>
       )}
     </div>
@@ -2276,29 +2324,9 @@ function DualModelToggle(props: {
   );
 }
 
-// 树形会话切换按钮组件
-function MessageTreeToggle(props: { enabled: boolean; onToggle: () => void }) {
-  return (
-    <div className={styles["message-tree-toggle"]}>
-      <IconButton
-        icon={<TreeIcon />}
-        bordered
-        title={
-          props.enabled
-            ? Locale.Chat.MessageTree.Disable
-            : Locale.Chat.MessageTree.Enable
-        }
-        tooltipPosition="bottom"
-        onClick={props.onToggle}
-        className={props.enabled ? styles["message-tree-active"] : ""}
-      />
-    </div>
-  );
-}
-
 // 双模型视图组件
 type RenderMessageType = ChatMessage & { preview?: boolean };
-type ChatNavigatorViewMode = "list" | "structure" | "graph";
+type ChatNavigatorViewMode = "structure" | "graph";
 
 function DualModelView(props: {
   primaryMessages: ChatMessage[];
@@ -2316,7 +2344,8 @@ function DualModelView(props: {
   onPrimaryModelSelect: () => void;
   onSecondaryModelSelect: () => void;
   treeSession?: ChatSession;
-  onActivateTreeNode?: (messageId: string) => void;
+  secondaryTreeSession?: ChatSession;
+  onActivateTreeNode?: (messageId: string, isSecondary?: boolean) => void;
   navigatorViewMode: ChatNavigatorViewMode;
   onNavigatorViewModeChange: (viewMode: ChatNavigatorViewMode) => void;
   onScrollBothToBottom?: (fn: (instant?: boolean) => void) => void; // 注册滚动到底部的回调
@@ -2567,7 +2596,7 @@ function DualModelView(props: {
               });
             }}
             onActivateTreeNode={(messageId) => {
-              props.onActivateTreeNode?.(messageId);
+              props.onActivateTreeNode?.(messageId, false);
               requestAnimationFrame(() => {
                 const index = primaryRenderMessages.findIndex(
                   (message) => message.id === messageId,
@@ -2641,6 +2670,9 @@ function DualModelView(props: {
           )}
           <ChatNavigator
             messages={secondaryRenderMessages}
+            treeSession={props.secondaryTreeSession}
+            viewMode={props.navigatorViewMode}
+            onViewModeChange={props.onNavigatorViewModeChange}
             currentIndex={getCurrentUserIndex(
               secondaryVisibleRange,
               secondaryRenderMessages,
@@ -2650,6 +2682,21 @@ function DualModelView(props: {
                 index,
                 align: "start",
                 behavior: "auto",
+              });
+            }}
+            onActivateTreeNode={(messageId) => {
+              props.onActivateTreeNode?.(messageId, true);
+              requestAnimationFrame(() => {
+                const index = secondaryRenderMessages.findIndex(
+                  (message) => message.id === messageId,
+                );
+                if (index >= 0) {
+                  secondaryVirtuosoRef.current?.scrollToIndex({
+                    index,
+                    align: "center",
+                    behavior: "auto",
+                  });
+                }
               });
             }}
             inPanel
@@ -2672,15 +2719,11 @@ function ChatNavigator(props: {
   inPanel?: boolean; // 是否在双模型 panel 内
 }) {
   const PREVIEW_LENGTH = 20;
-  const listRef = useRef<HTMLDivElement>(null);
-  const activeItemRef = useRef<HTMLDivElement>(null);
   const navigatorRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [internalViewMode, setInternalViewMode] =
-    useState<ChatNavigatorViewMode>("list");
+    useState<ChatNavigatorViewMode>("structure");
   const controlledViewMode = props.viewMode;
   const onViewModeChange = props.onViewModeChange;
   const viewMode = controlledViewMode ?? internalViewMode;
@@ -2695,10 +2738,8 @@ function ChatNavigator(props: {
   );
   const canShowStructure =
     !!props.treeSession?.enableMessageTree && !!props.treeSession?.messageTree;
-  const effectiveViewMode = canShowStructure ? viewMode : "list";
-
-  const shouldKeepOpen =
-    isOpen || isSearchFocused || searchQuery.trim().length > 0;
+  const effectiveViewMode = viewMode;
+  const shouldKeepOpen = isOpen;
 
   const cancelCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -2714,19 +2755,15 @@ function ChatNavigator(props: {
 
   const closeNavigator = useCallback(() => {
     cancelCloseTimer();
-    setIsSearchFocused(false);
-    setSearchQuery("");
     setIsOpen(false);
   }, [cancelCloseTimer]);
 
   const scheduleCloseNavigator = useCallback(() => {
     cancelCloseTimer();
     closeTimerRef.current = setTimeout(() => {
-      if (isSearchFocused) return;
       setIsOpen(false);
-      setSearchQuery("");
     }, 140);
-  }, [cancelCloseTimer, isSearchFocused]);
+  }, [cancelCloseTimer]);
 
   useEffect(() => {
     return () => cancelCloseTimer();
@@ -2748,28 +2785,6 @@ function ChatNavigator(props: {
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [closeNavigator, shouldKeepOpen]);
-
-  // 生成消息列表（用户消息 or 搜索结果）
-  const displayMessages = useMemo(() => {
-    const allMessages = props.messages.map((msg, index) => ({
-      id: msg.id,
-      index,
-      content: getMessageTextContent(msg),
-      preview: getMessageTextContent(msg).slice(0, PREVIEW_LENGTH),
-      role: msg.role,
-    }));
-
-    // 如果有搜索词，搜索所有消息
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      return allMessages.filter((msg) =>
-        msg.content.toLowerCase().includes(query),
-      );
-    }
-
-    // 否则只显示用户消息
-    return allMessages.filter((msg) => msg.role === "user");
-  }, [props.messages, searchQuery]);
 
   const activePathIndexById = useMemo(() => {
     const indexes = new Map<string, number>();
@@ -2813,6 +2828,7 @@ function ChatNavigator(props: {
         branchItems,
         activeSiblingIndex:
           activeSiblingIndex >= 0 ? activeSiblingIndex + 1 : 1,
+        beClear: !!message.beClear,
       };
     });
   }, [props.currentIndex, props.messages, props.treeSession]);
@@ -2902,6 +2918,7 @@ function ChatNavigator(props: {
         x: number;
         y: number;
         active: boolean;
+        beClear: boolean;
         role: string;
         label: string;
         order: number;
@@ -2919,6 +2936,7 @@ function ChatNavigator(props: {
         x: position.x + offsetX,
         y: marginY + nodeRadius + position.depth * rowGap,
         active: activeIds.has(id),
+        beClear: !!node.beClear,
         role: node.role,
         label: `${
           node.role === "user"
@@ -2932,6 +2950,7 @@ function ChatNavigator(props: {
     const edges: Array<{
       from: { x: number; y: number; active: boolean };
       to: { x: number; y: number; active: boolean };
+      beClear: boolean;
     }> = [];
 
     Object.values(tree).forEach((node) => {
@@ -2941,7 +2960,7 @@ function ChatNavigator(props: {
         .filter((id) => nodeById.has(id))
         .forEach((childId) => {
           const to = nodeById.get(childId)!;
-          edges.push({ from, to });
+          edges.push({ from, to, beClear: !!node.beClear });
         });
     });
 
@@ -2973,16 +2992,6 @@ function ChatNavigator(props: {
     props.onActivateTreeNode?.(messageId);
   };
 
-  // 当 hover 面板时，滚动到当前高亮项
-  const scrollToActiveItem = useCallback(() => {
-    if (activeItemRef.current && listRef.current) {
-      activeItemRef.current.scrollIntoView({
-        block: "center",
-        behavior: "auto",
-      });
-    }
-  }, []);
-
   return (
     <div
       ref={navigatorRef}
@@ -2993,7 +3002,6 @@ function ChatNavigator(props: {
       )}
       onMouseEnter={() => {
         openNavigator();
-        scrollToActiveItem();
       }}
       onMouseLeave={scheduleCloseNavigator}
       onClick={(e) => e.stopPropagation()}
@@ -3017,17 +3025,6 @@ function ChatNavigator(props: {
           <span className={styles["chat-navigator-title"]}>
             {Locale.Chat.Navigator.Title}
           </span>
-          {effectiveViewMode === "list" ? (
-            <input
-              type="text"
-              placeholder={Locale.Chat.Navigator.Search}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => setIsSearchFocused(false)}
-              className={styles["chat-navigator-search-input"]}
-            />
-          ) : null}
           <button
             type="button"
             className={styles["chat-navigator-close"]}
@@ -3039,17 +3036,6 @@ function ChatNavigator(props: {
         </div>
         {canShowStructure && (
           <div className={styles["chat-navigator-tabs"]}>
-            <button
-              type="button"
-              className={clsx(
-                styles["chat-navigator-tab"],
-                effectiveViewMode === "list" &&
-                  styles["chat-navigator-tab-active"],
-              )}
-              onClick={() => setNavigatorViewMode("list")}
-            >
-              {Locale.Chat.Navigator.List}
-            </button>
             <button
               type="button"
               className={clsx(
@@ -3074,7 +3060,7 @@ function ChatNavigator(props: {
             </button>
           </div>
         )}
-        <div className={styles["chat-navigator-list"]} ref={listRef}>
+        <div className={styles["chat-navigator-list"]}>
           {effectiveViewMode === "graph" ? (
             !graphData ? (
               <div className={styles["chat-navigator-empty"]}>
@@ -3099,6 +3085,15 @@ function ChatNavigator(props: {
                           edge.to.active &&
                           styles["chat-graph-edge-active"],
                       )}
+                      style={
+                        edge.beClear
+                          ? {
+                              stroke: "#e74c3c",
+                              strokeDasharray: "4 3",
+                              strokeWidth: 1.5,
+                            }
+                          : undefined
+                      }
                     />
                   ))}
                   {graphData.nodes.map((node) => (
@@ -3137,16 +3132,15 @@ function ChatNavigator(props: {
                 </svg>
               </div>
             )
-          ) : effectiveViewMode === "structure" ? (
-            structureRows.length === 0 ? (
-              <div className={styles["chat-navigator-empty"]}>
-                {Locale.Chat.Navigator.StructureEmpty}
-              </div>
-            ) : (
-              <div className={styles["chat-structure-map"]}>
-                {structureRows.map((row) => (
+          ) : structureRows.length === 0 ? (
+            <div className={styles["chat-navigator-empty"]}>
+              {Locale.Chat.Navigator.StructureEmpty}
+            </div>
+          ) : (
+            <div className={styles["chat-structure-map"]}>
+              {structureRows.map((row) => (
+                <Fragment key={row.id}>
                   <div
-                    key={row.id}
                     className={clsx(
                       styles["chat-structure-row"],
                       row.isViewportActive &&
@@ -3206,37 +3200,18 @@ function ChatNavigator(props: {
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )
-          ) : displayMessages.length === 0 ? (
-            <div className={styles["chat-navigator-empty"]}>
-              {searchQuery.trim()
-                ? Locale.Chat.Navigator.NoResults
-                : Locale.Chat.Navigator.Empty}
-            </div>
-          ) : (
-            displayMessages.map((item) => {
-              const isActive = props.currentIndex === item.index;
-              return (
-                <div
-                  key={item.id}
-                  ref={isActive ? activeItemRef : null}
-                  className={clsx(
-                    styles["chat-navigator-item"],
-                    isActive && styles["chat-navigator-item-active"],
+                  {row.beClear && (
+                    <div className={styles["chat-structure-divider"]}>
+                      <span className={styles["chat-structure-divider-line"]} />
+                      <span className={styles["chat-structure-divider-label"]}>
+                        {Locale.Chat.InputActions.Clear}
+                      </span>
+                      <span className={styles["chat-structure-divider-line"]} />
+                    </div>
                   )}
-                  onClick={() => props.onJumpTo(item.index)}
-                >
-                  <div className={styles["chat-navigator-item-role"]}>
-                    {item.role === "user" ? "👨" : "💡"}
-                  </div>
-                  <div className={styles["chat-navigator-item-preview"]}>
-                    {item.preview || Locale.Chat.Navigator.EmptyMessage}
-                  </div>
-                </div>
-              );
-            })
+                </Fragment>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -3249,7 +3224,7 @@ function ChatComponent() {
 
   const chatStore = useChatStore();
   const session = chatStore.currentSession();
-  const treeConversationEnabled = !!session.enableMessageTree;
+  const treeConversationEnabled = session.enableMessageTree !== false;
   const config = useAppConfig();
   const modelTable = useModelTable();
   // const fontSize = config.fontSize;
@@ -3280,8 +3255,15 @@ function ChatComponent() {
   const [modelAtSelectIndex, setModelAtSelectIndex] = useState(0); // 当前选中模型的索引
 
   // 双模型模式状态
-  const isDualMode =
-    !treeConversationEnabled && (session.dualModelMode || false);
+  const isDualMode = session.dualModelMode || false;
+  const secondaryTreeSession = {
+    ...session,
+    messages: session.secondaryMessages ?? [],
+    messageTree: session.secondaryMessageTree ?? {},
+    rootMessageIds: session.secondaryRootMessageIds ?? [],
+    activeRootId: session.secondaryActiveRootId,
+    enableMessageTree: treeConversationEnabled,
+  } as ChatSession;
   const [showSecondaryModelSelector, setShowSecondaryModelSelector] =
     useState(false);
   const [showPrimaryModelSelector, setShowPrimaryModelSelector] =
@@ -3644,9 +3626,13 @@ function ChatComponent() {
     resend: () => onResend(session.messages[session.messages.length - 1]),
     clear: () =>
       chatStore.updateTargetSession(session, (session) => {
-        session.clearContextIndex = session.messages.length;
-        if (session.clearContextIndex > 1) {
-          session.messages[session.messages.length - 1].beClear = true;
+        const lastMessage = session.messages.at(-1);
+        if (lastMessage) {
+          toggleClearContextBoundary(session, lastMessage.id);
+        }
+        const lastSecondaryMessage = session.secondaryMessages?.at(-1);
+        if (session.dualModelMode && lastSecondaryMessage) {
+          toggleClearContextBoundary(session, lastSecondaryMessage.id, true);
         }
       }),
     new: () => chatStore.newSession(),
@@ -3849,8 +3835,11 @@ function ChatComponent() {
   };
 
   // stop response
-  const onUserStop = (messageId: string) => {
-    ChatControllerPool.stop(session.id, messageId);
+  const onUserStop = (messageId: string, isSecondary = false) => {
+    ChatControllerPool.stop(
+      isSecondary ? `${session.id}-secondary` : session.id,
+      messageId,
+    );
   };
 
   useEffect(() => {
@@ -4088,13 +4077,46 @@ function ChatComponent() {
 
   const onBreak = (msgId: string) => {
     chatStore.updateTargetSession(session, (session) => {
-      if (session.enableMessageTree) return;
-
-      const msg = session.messages.find((m) => m.id === msgId);
-      if (msg) {
-        msg.beClear = true;
-      }
+      toggleClearContextBoundary(session, msgId);
     });
+  };
+
+  const onBreakSecondary = (msgId: string) => {
+    chatStore.updateTargetSession(session, (session) => {
+      toggleClearContextBoundary(session, msgId, true);
+    });
+  };
+
+  const getSecondaryFullConfig = () => {
+    const secondaryModelConfig = session.secondaryModelConfig;
+    if (!secondaryModelConfig) return null;
+
+    const primaryConfig = session.mask.modelConfig;
+    return {
+      ...primaryConfig,
+      model: secondaryModelConfig.model,
+      providerName: secondaryModelConfig.providerName,
+      historyMessageCount:
+        secondaryModelConfig.historyMessageCount ??
+        primaryConfig.historyMessageCount,
+      sendMemory: secondaryModelConfig.sendMemory ?? primaryConfig.sendMemory,
+      compressMessageLengthThreshold:
+        secondaryModelConfig.compressMessageLengthThreshold ??
+        primaryConfig.compressMessageLengthThreshold,
+      temperature:
+        secondaryModelConfig.temperature ?? primaryConfig.temperature,
+      top_p: secondaryModelConfig.top_p ?? primaryConfig.top_p,
+      max_tokens: secondaryModelConfig.max_tokens ?? primaryConfig.max_tokens,
+      presence_penalty:
+        secondaryModelConfig.presence_penalty ?? primaryConfig.presence_penalty,
+      frequency_penalty:
+        secondaryModelConfig.frequency_penalty ??
+        primaryConfig.frequency_penalty,
+      enableInjectSystemPrompts:
+        secondaryModelConfig.enableInjectSystemPrompts ??
+        primaryConfig.enableInjectSystemPrompts,
+      stream: true,
+    };
   };
 
   const onResend = async (
@@ -4160,7 +4182,10 @@ function ChatComponent() {
       });
     }
 
-    if (treeConversationEnabled && mode === "with-instruction") {
+    let retryUserMessage: ChatMessage | null = null;
+    let retryRequestContent: string | MultimodalContent[];
+
+    if (mode === "with-instruction") {
       const instruction = await showPrompt(
         Locale.Chat.Actions.RetryWithInstruction,
         "",
@@ -4180,52 +4205,49 @@ function ChatComponent() {
         getMessageTextContent(userMessage),
         trimmedInstruction,
       );
-      const images = getMessageImages(userMessage);
-
-      chatStore.onUserInput(
-        textContent,
-        images,
+      retryUserMessage = createMessage({
+        role: "user",
+        content: buildRetryDisplayContent(
+          userMessage,
+          textContent,
+          userAttachFiles,
+        ),
+        isContinuePrompt: userMessage.isContinuePrompt,
+        quote: userMessage.quote,
+        modelSource: "primary",
+        originId: userMessage.id,
+        branchKind: "retry",
+      });
+      retryUserMessage.turnId = retryUserMessage.id;
+      retryRequestContent = await buildRetryRequestContent(
+        retryUserMessage,
         userAttachFiles,
-        userMessage.isContinuePrompt,
-        userMessage.quote,
-        branchParentId,
-      );
-      inputRef.current?.focus();
-      return;
-    }
-
-    if (!treeConversationEnabled) {
-      setIsLoading(true);
-      const textContent = getMessageTextContent(userMessage);
-      const images = getMessageImages(userMessage);
-      const idsToRemove = new Set(
-        [userMessage.id, botMessage?.id].filter(Boolean) as string[],
       );
 
       chatStore.updateTargetSession(session, (session) => {
-        session.messages = session.messages.filter(
-          (message) => !idsToRemove.has(message.id),
-        );
-        rebuildMessageTreeFromMessages(session);
+        session.enableMessageTree = true;
+        activateMessagePath(session, branchParentId, { truncate: true });
       });
+    } else {
+      retryRequestContent = await buildRetryRequestContent(
+        userMessage,
+        userAttachFiles,
+      );
 
-      chatStore
-        .onUserInput(
-          textContent,
-          images,
-          userAttachFiles,
-          userMessage.isContinuePrompt,
-          userMessage.quote,
-        )
-        .then(() => setIsLoading(false));
-      inputRef.current?.focus();
-      return;
+      chatStore.updateTargetSession(session, (session) => {
+        session.enableMessageTree = true;
+        const currentUserMessage =
+          session.messageTree?.[userMessage!.id] ??
+          session.messages.find((message) => message.id === userMessage!.id);
+        if (currentUserMessage) {
+          currentUserMessage.turnId =
+            currentUserMessage.turnId ?? currentUserMessage.id;
+          currentUserMessage.branchKind =
+            currentUserMessage.branchKind ?? "normal";
+        }
+        activateMessagePath(session, userMessage!.id, { truncate: true });
+      });
     }
-
-    const retryRequestContent = await buildRetryRequestContent(
-      userMessage,
-      userAttachFiles,
-    );
 
     const newBotMessage = createMessage({
       role: "assistant",
@@ -4233,32 +4255,19 @@ function ChatComponent() {
       model: session.mask.modelConfig.model,
       providerName: session.mask.modelConfig.providerName,
       modelSource: "primary",
-      turnId: userMessage.turnId ?? userMessage.id,
+      turnId: retryUserMessage?.turnId ?? userMessage.turnId ?? userMessage.id,
       originId: botMessage?.id,
       branchKind: "retry",
     });
 
-    chatStore.updateTargetSession(session, (session) => {
-      session.enableMessageTree = true;
-      const currentUserMessage =
-        session.messageTree?.[userMessage!.id] ??
-        session.messages.find((message) => message.id === userMessage!.id);
-      if (currentUserMessage) {
-        currentUserMessage.turnId =
-          currentUserMessage.turnId ?? currentUserMessage.id;
-        currentUserMessage.branchKind =
-          currentUserMessage.branchKind ?? "normal";
-        newBotMessage.turnId = currentUserMessage.turnId;
-      }
-      activateMessagePath(session, userMessage!.id, { truncate: true });
-    });
-
     const memoryMessages = chatStore.getMessagesWithMemory();
-    const retryMessageInMemory = memoryMessages.some(
-      (message) => message.id === userMessage!.id,
-    );
     const sendMessages = (
-      retryMessageInMemory
+      retryUserMessage
+        ? memoryMessages.concat({
+            ...retryUserMessage,
+            content: retryRequestContent,
+          })
+        : memoryMessages.some((message) => message.id === userMessage!.id)
         ? memoryMessages.map((message) =>
             message.id === userMessage!.id
               ? { ...message, content: retryRequestContent }
@@ -4271,7 +4280,10 @@ function ChatComponent() {
     ) as ChatMessage[];
 
     chatStore.updateTargetSession(session, (session) => {
-      appendMessagesToActivePath(session, [newBotMessage]);
+      appendMessagesToActivePath(
+        session,
+        retryUserMessage ? [retryUserMessage, newBotMessage] : [newBotMessage],
+      );
     });
 
     const api = getClientApi(session.mask.modelConfig.providerName);
@@ -4348,16 +4360,22 @@ function ChatComponent() {
   };
 
   // 副模型消息删除
-  const onDeleteSecondary = (msgId: string) => {
+  const onDeleteSecondary = async (msgId: string) => {
+    const confirmed = await showConfirm(
+      Locale.Chat.MessageTree.DeleteNodeConfirm,
+    );
+    if (!confirmed) return;
+
     chatStore.updateTargetSession(session, (session) => {
-      session.secondaryMessages = (session.secondaryMessages || []).filter(
-        (m) => m.id !== msgId,
-      );
+      removeMessageFromTree(session, msgId, "secondary");
     });
   };
 
   // 副模型消息重试
-  const onResendSecondary = (message: ChatMessage) => {
+  const onResendSecondary = async (
+    message: ChatMessage,
+    mode: ResendMode = "direct",
+  ) => {
     const secondaryMessages = session.secondaryMessages || [];
     const resendingIndex = secondaryMessages.findIndex(
       (m) => m.id === message.id,
@@ -4397,25 +4415,103 @@ function ChatComponent() {
       return;
     }
 
-    // 删除原消息
-    onDeleteSecondary(userMessage.id);
-    if (botMessage) {
-      onDeleteSecondary(botMessage.id);
-    }
-
-    // 重新发送到副模型
     const secondaryModelConfig = session.secondaryModelConfig;
     if (!secondaryModelConfig) {
       showToast("请先选择副模型");
       return;
     }
 
-    // 创建新的用户消息和 bot 消息
-    const newUserMessage = createMessage({
-      role: "user",
-      content: userMessage.content,
-      modelSource: "secondary",
-    });
+    const secondaryFullConfig = getSecondaryFullConfig();
+    if (!secondaryFullConfig) return;
+
+    const userAttachFiles: UploadFile[] = [];
+    if (Array.isArray(userMessage.content)) {
+      userMessage.content.forEach((item) => {
+        if (item.type === "file_url" && item.file_url) {
+          userAttachFiles.push({
+            name: item.file_url.name,
+            url: item.file_url.url,
+            contentType: item.file_url.contentType,
+            size: item.file_url.size,
+            tokenCount: item.file_url.tokenCount,
+          });
+        }
+      });
+    }
+
+    let retryUserMessage: ChatMessage | null = null;
+    let retryRequestContent: string | MultimodalContent[];
+
+    if (mode === "with-instruction") {
+      const instruction = await showPrompt(
+        Locale.Chat.Actions.RetryWithInstruction,
+        "",
+        5,
+      );
+      const trimmedInstruction = instruction.trim();
+      if (!trimmedInstruction) {
+        showToast(Locale.Chat.Actions.RetryInstructionEmpty);
+        inputRef.current?.focus();
+        return;
+      }
+
+      const userTreeNode = session.secondaryMessageTree?.[userMessage.id];
+      const branchParentId =
+        userTreeNode?.parentId ?? userMessage.parentId ?? null;
+      const textContent = appendRetryInstruction(
+        getMessageTextContent(userMessage),
+        trimmedInstruction,
+      );
+      retryUserMessage = createMessage({
+        role: "user",
+        content: buildRetryDisplayContent(
+          userMessage,
+          textContent,
+          userAttachFiles,
+        ),
+        isContinuePrompt: userMessage.isContinuePrompt,
+        quote: userMessage.quote,
+        modelSource: "secondary",
+        originId: userMessage.id,
+        branchKind: "retry",
+      });
+      retryUserMessage.turnId = retryUserMessage.id;
+      retryRequestContent = await buildRetryRequestContent(
+        retryUserMessage,
+        userAttachFiles,
+      );
+
+      chatStore.updateTargetSession(session, (session) => {
+        activateMessagePath(session, branchParentId, {
+          truncate: true,
+          source: "secondary",
+        });
+      });
+    } else {
+      retryRequestContent = await buildRetryRequestContent(
+        userMessage,
+        userAttachFiles,
+      );
+
+      chatStore.updateTargetSession(session, (session) => {
+        const currentUserMessage =
+          session.secondaryMessageTree?.[userMessage!.id] ??
+          session.secondaryMessages?.find(
+            (message) => message.id === userMessage!.id,
+          );
+        if (currentUserMessage) {
+          currentUserMessage.turnId =
+            currentUserMessage.turnId ?? currentUserMessage.id;
+          currentUserMessage.branchKind =
+            currentUserMessage.branchKind ?? "normal";
+        }
+        activateMessagePath(session, userMessage!.id, {
+          truncate: true,
+          source: "secondary",
+        });
+      });
+    }
+
     const newBotMessage = createMessage({
       role: "assistant",
       streaming: true,
@@ -4423,50 +4519,39 @@ function ChatComponent() {
       providerName: secondaryModelConfig.providerName,
       displayName: secondaryModelConfig.displayName,
       modelSource: "secondary",
+      turnId: retryUserMessage?.turnId ?? userMessage.turnId ?? userMessage.id,
+      originId: botMessage?.id,
+      branchKind: "retry",
     });
 
-    // 添加到副模型消息队列
+    const memoryMessages = chatStore.getSecondaryMessagesWithMemory();
+    const sendMessages = (
+      retryUserMessage
+        ? memoryMessages.concat({
+            ...retryUserMessage,
+            content: retryRequestContent,
+          })
+        : memoryMessages.some((message) => message.id === userMessage!.id)
+        ? memoryMessages.map((message) =>
+            message.id === userMessage!.id
+              ? { ...message, content: retryRequestContent }
+              : message,
+          )
+        : memoryMessages.concat({
+            ...userMessage,
+            content: retryRequestContent,
+          })
+    ) as ChatMessage[];
+
     chatStore.updateTargetSession(session, (session) => {
-      session.secondaryMessages = (session.secondaryMessages || []).concat([
-        newUserMessage,
-        newBotMessage,
-      ]);
+      appendMessagesToActivePath(
+        session,
+        retryUserMessage ? [retryUserMessage, newBotMessage] : [newBotMessage],
+        "secondary",
+      );
     });
 
-    // 发送请求到副模型
     const api = getClientApi(secondaryModelConfig.providerName);
-    const sendMessages = (session.secondaryMessages || [])
-      .filter((m) => m.id !== newBotMessage.id)
-      .slice(-10); // 取最近的消息
-
-    // 构建副模型的完整配置
-    const primaryConfig = session.mask.modelConfig;
-    const secondaryFullConfig = {
-      ...primaryConfig,
-      model: secondaryModelConfig.model,
-      providerName: secondaryModelConfig.providerName,
-      historyMessageCount:
-        secondaryModelConfig.historyMessageCount ??
-        primaryConfig.historyMessageCount,
-      sendMemory: secondaryModelConfig.sendMemory ?? primaryConfig.sendMemory,
-      compressMessageLengthThreshold:
-        secondaryModelConfig.compressMessageLengthThreshold ??
-        primaryConfig.compressMessageLengthThreshold,
-      temperature:
-        secondaryModelConfig.temperature ?? primaryConfig.temperature,
-      top_p: secondaryModelConfig.top_p ?? primaryConfig.top_p,
-      max_tokens: secondaryModelConfig.max_tokens ?? primaryConfig.max_tokens,
-      presence_penalty:
-        secondaryModelConfig.presence_penalty ?? primaryConfig.presence_penalty,
-      frequency_penalty:
-        secondaryModelConfig.frequency_penalty ??
-        primaryConfig.frequency_penalty,
-      enableInjectSystemPrompts:
-        secondaryModelConfig.enableInjectSystemPrompts ??
-        primaryConfig.enableInjectSystemPrompts,
-      stream: true,
-    };
-
     api.llm.chat({
       messages: sendMessages,
       config: secondaryFullConfig,
@@ -4476,7 +4561,9 @@ function ChatComponent() {
           newBotMessage.content = content;
         }
         chatStore.updateTargetSession(session, (session) => {
-          session.secondaryMessages = session.secondaryMessages?.concat();
+          session.secondaryMessages = (
+            session.secondaryMessages ?? []
+          ).concat();
         });
       },
       onFinish(message) {
@@ -4487,7 +4574,9 @@ function ChatComponent() {
         }
         newBotMessage.date = new Date().toLocaleString();
         chatStore.updateTargetSession(session, (session) => {
-          session.secondaryMessages = session.secondaryMessages?.concat();
+          session.secondaryMessages = (
+            session.secondaryMessages ?? []
+          ).concat();
         });
         ChatControllerPool.remove(`${session.id}-secondary`, newBotMessage.id);
       },
@@ -4501,7 +4590,9 @@ function ChatComponent() {
         newBotMessage.streaming = false;
         newBotMessage.isError = true;
         chatStore.updateTargetSession(session, (session) => {
-          session.secondaryMessages = session.secondaryMessages?.concat();
+          session.secondaryMessages = (
+            session.secondaryMessages ?? []
+          ).concat();
         });
         ChatControllerPool.remove(`${session.id}-secondary`, newBotMessage.id);
       },
@@ -4779,7 +4870,7 @@ function ChatComponent() {
     endIndex: number;
   } | null>(null);
   const [navigatorViewMode, setNavigatorViewMode] =
-    useState<ChatNavigatorViewMode>("list");
+    useState<ChatNavigatorViewMode>("structure");
 
   // 跳转到引用的消息并高亮具体文本
   const scrollToQuotedMessage = useCallback(
@@ -5120,16 +5211,6 @@ function ChatComponent() {
       window.history.replaceState({}, document.title);
     }
   }, [location.state?.triggerShare]);
-
-  // clear context index = context length + index in messages
-  const clearContextIndex =
-    (session.clearContextIndex ?? -1) >= 0
-      ? session.clearContextIndex! + context.length // - msgRenderIndex
-      : -1;
-  const secondaryClearContextIndex =
-    (session.secondaryClearContextIndex ?? -1) >= 0
-      ? session.secondaryClearContextIndex! + context.length
-      : -1;
 
   const [showPromptModal, setShowPromptModal] = useState(false);
 
@@ -5799,11 +5880,16 @@ function ChatComponent() {
     );
   };
 
-  const getMessageBranchTarget = (message: ChatMessage) => {
+  type MessagePanelSource = "primary" | "secondary";
+
+  const getMessageBranchTarget = (
+    message: ChatMessage,
+    source: MessagePanelSource = "primary",
+  ) => {
     if (!treeConversationEnabled) return null;
 
     if (message.role === "user") {
-      const userBranchInfo = getMessageBranchInfo(session, message.id);
+      const userBranchInfo = getMessageBranchInfo(session, message.id, source);
       if (!userBranchInfo) return null;
 
       return {
@@ -5814,7 +5900,11 @@ function ChatComponent() {
 
     if (message.role !== "assistant") return null;
 
-    const assistantBranchInfo = getMessageBranchInfo(session, message.id);
+    const assistantBranchInfo = getMessageBranchInfo(
+      session,
+      message.id,
+      source,
+    );
     if (assistantBranchInfo) {
       return {
         targetId: message.id,
@@ -5823,7 +5913,11 @@ function ChatComponent() {
     }
 
     if (!message.parentId) return null;
-    const userBranchInfo = getMessageBranchInfo(session, message.parentId);
+    const userBranchInfo = getMessageBranchInfo(
+      session,
+      message.parentId,
+      source,
+    );
     if (!userBranchInfo) return null;
 
     return {
@@ -5835,6 +5929,7 @@ function ChatComponent() {
   const renderMessageBranchSwitcher = (
     message: ChatMessage,
     branchTarget = getMessageBranchTarget(message),
+    source: MessagePanelSource = "primary",
   ) => {
     if (!branchTarget) return null;
 
@@ -5842,16 +5937,16 @@ function ChatComponent() {
       <MessageBranchSwitcher
         branchInfo={branchTarget.branchInfo}
         onSwitch={(delta) =>
-          chatStore.switchMessageBranch(branchTarget.targetId, delta)
+          chatStore.switchMessageBranch(branchTarget.targetId, delta, source)
         }
       />
     );
   };
 
   const activateTreeNodePath = useCallback(
-    (messageId: string) => {
+    (messageId: string, source: MessagePanelSource = "primary") => {
       chatStore.updateTargetSession(session, (session) => {
-        activateMessagePath(session, messageId);
+        activateMessagePath(session, messageId, { source });
       });
     },
     [chatStore, session],
@@ -5894,34 +5989,9 @@ function ChatComponent() {
             <div className="window-action-button">
               <DualModelToggle
                 enabled={isDualMode}
-                disabled={treeConversationEnabled}
-                disabledTitle={Locale.Chat.MessageTree.DualModelNotSupported}
                 onToggle={() =>
                   chatStore.toggleDualModelMode(currentModelInfo?.displayName)
                 }
-              />
-            </div>
-          )}
-          {!isMobileScreen && (
-            <div className="window-action-button">
-              <MessageTreeToggle
-                enabled={treeConversationEnabled}
-                onToggle={async () => {
-                  const willEnable = !treeConversationEnabled;
-                  if (!willEnable) {
-                    const confirmed = await showConfirm(
-                      Locale.Chat.MessageTree.DisableConfirm,
-                    );
-                    if (!confirmed) return;
-                  }
-
-                  chatStore.toggleMessageTreeMode();
-                  showToast(
-                    willEnable
-                      ? Locale.Chat.MessageTree.EnabledToast
-                      : Locale.Chat.MessageTree.DisabledToast,
-                  );
-                }}
               />
             </div>
           )}
@@ -6019,7 +6089,15 @@ function ChatComponent() {
             onPrimaryModelSelect={() => setShowPrimaryModelSelector(true)}
             onSecondaryModelSelect={() => setShowSecondaryModelSelector(true)}
             treeSession={treeConversationEnabled ? session : undefined}
-            onActivateTreeNode={activateTreeNodePath}
+            secondaryTreeSession={
+              treeConversationEnabled ? secondaryTreeSession : undefined
+            }
+            onActivateTreeNode={(messageId, isSecondary) =>
+              activateTreeNodePath(
+                messageId,
+                isSecondary ? "secondary" : "primary",
+              )
+            }
             navigatorViewMode={navigatorViewMode}
             onNavigatorViewModeChange={setNavigatorViewMode}
             onScrollBothToBottom={(fn) => {
@@ -6048,13 +6126,8 @@ function ChatComponent() {
 
               const showTyping = message.preview || message.streaming;
 
-              // 上下文分割线判断
-              const effectiveClearIndex = isSecondary
-                ? secondaryClearContextIndex
-                : clearContextIndex;
               const shouldShowClearContextDivider =
-                (!treeConversationEnabled || isSecondary) &&
-                (i === effectiveClearIndex - 1 || message?.beClear === true);
+                !isContext && !!message?.beClear;
 
               return (
                 <Fragment key={message.id}>
@@ -6169,58 +6242,59 @@ function ChatComponent() {
                             {message.displayName || message.model}
                           </div>
                         )}
-                        {/* 消息操作按钮 */}
-                        {showActions && (
+                        {/* 消息操作按钮 (header, iconUp) */}
+                        {iconUpEnabled && (showActions || !iconDownEnabled) && (
                           <div
                             className={clsx(
                               styles["chat-message-actions"],
-                              !isUser && styles["chat-message-actions-visible"],
+                              (!isUser || !iconDownEnabled) &&
+                                styles["chat-message-actions-visible"],
                             )}
                           >
                             <div className={styles["message-actions-row"]}>
-                              {message.streaming ? (
-                                <ChatAction
-                                  text={Locale.Chat.Actions.Stop}
-                                  icon={<StopIcon />}
-                                  onClick={() => onUserStop(message.id ?? i)}
+                              {!iconDownEnabled &&
+                                !isUser &&
+                                !message.streaming &&
+                                renderMessageBranchSwitcher(
+                                  message,
+                                  getMessageBranchTarget(
+                                    message,
+                                    isSecondary ? "secondary" : "primary",
+                                  ),
+                                  isSecondary ? "secondary" : "primary",
+                                )}
+                              {showActions && (
+                                <ChatInputActions
+                                  message={message}
+                                  onUserStop={(msgId) =>
+                                    onUserStop(msgId, isSecondary)
+                                  }
+                                  onResend={(message, mode) =>
+                                    isSecondary
+                                      ? onResendSecondary(message, mode)
+                                      : onResend(message, mode)
+                                  }
+                                  onDelete={(msgId) =>
+                                    isSecondary
+                                      ? onDeleteSecondary(msgId)
+                                      : onDelete(msgId)
+                                  }
+                                  onBreak={(msgId) =>
+                                    isSecondary
+                                      ? onBreakSecondary(msgId)
+                                      : onBreak(msgId)
+                                  }
+                                  onPinMessage={onPinMessage}
+                                  copyToClipboard={copyToClipboard}
+                                  openaiSpeech={openaiSpeech}
+                                  setUserInput={setUserInput}
+                                  speechStatus={speechStatus}
+                                  config={config}
+                                  i={i}
+                                  hideRemovalActions={false}
+                                  showDeleteAction={true}
+                                  treeMode={treeConversationEnabled}
                                 />
-                              ) : (
-                                <>
-                                  <ChatAction
-                                    text={Locale.Chat.Actions.Copy}
-                                    icon={<CopyIcon />}
-                                    onClick={() =>
-                                      copyToClipboard(
-                                        getMessageTextContent(message),
-                                      )
-                                    }
-                                  />
-                                  {!isUser && (
-                                    <ChatRetryAction
-                                      message={message}
-                                      treeMode={
-                                        treeConversationEnabled && !isSecondary
-                                      }
-                                      onResend={(message, mode) =>
-                                        isSecondary
-                                          ? onResendSecondary(message)
-                                          : onResend(message, mode)
-                                      }
-                                    />
-                                  )}
-                                  {(!treeConversationEnabled ||
-                                    isSecondary) && (
-                                    <ChatAction
-                                      text={Locale.Chat.Actions.Delete}
-                                      icon={<DeleteIcon />}
-                                      onClick={() =>
-                                        isSecondary
-                                          ? onDeleteSecondary(message.id ?? i)
-                                          : onDelete(message.id ?? i)
-                                      }
-                                    />
-                                  )}
-                                </>
                               )}
                             </div>
                           </div>
@@ -6357,36 +6431,54 @@ function ChatComponent() {
                           : formatMessageForDual(message)}
                       </div>
                       {/* 底部功能图标组 */}
-                      {showActions && (
-                        <div
-                          className={clsx(
-                            styles["chat-message-actions"],
-                            !isUser && styles["chat-message-actions-visible"],
-                          )}
-                        >
-                          <div className={styles["message-actions-row"]}>
-                            {message.streaming ? (
-                              <ChatAction
-                                text={Locale.Chat.Actions.Stop}
-                                icon={<StopIcon />}
-                                onClick={() => onUserStop(message.id ?? i)}
-                              />
-                            ) : (
-                              <>
-                                {!isSecondary &&
-                                  renderMessageBranchSwitcher(message)}
-                                <ChatRetryAction
-                                  message={message}
-                                  treeMode={
-                                    treeConversationEnabled && !isSecondary
-                                  }
-                                  onResend={(message, mode) =>
-                                    isSecondary
-                                      ? onResendSecondary(message)
-                                      : onResend(message, mode)
+                      {iconDownEnabled &&
+                        (showActions || (iconUpEnabled && !isUser)) && (
+                          <div
+                            className={clsx(
+                              styles["chat-message-actions"],
+                              !isUser && styles["chat-message-actions-visible"],
+                            )}
+                          >
+                            <div className={styles["message-actions-row"]}>
+                              {iconUpEnabled &&
+                                !isUser &&
+                                !message.streaming &&
+                                renderMessageBranchSwitcher(
+                                  message,
+                                  getMessageBranchTarget(
+                                    message,
+                                    isSecondary ? "secondary" : "primary",
+                                  ),
+                                  isSecondary ? "secondary" : "primary",
+                                )}
+                              {message.streaming ? (
+                                <ChatAction
+                                  text={Locale.Chat.Actions.Stop}
+                                  icon={<StopIcon />}
+                                  onClick={() =>
+                                    onUserStop(message.id ?? i, isSecondary)
                                   }
                                 />
-                                {(!treeConversationEnabled || isSecondary) && (
+                              ) : showActions ? (
+                                <>
+                                  {!iconUpEnabled &&
+                                    renderMessageBranchSwitcher(
+                                      message,
+                                      getMessageBranchTarget(
+                                        message,
+                                        isSecondary ? "secondary" : "primary",
+                                      ),
+                                      isSecondary ? "secondary" : "primary",
+                                    )}
+                                  <ChatRetryAction
+                                    message={message}
+                                    treeMode={treeConversationEnabled}
+                                    onResend={(message, mode) =>
+                                      isSecondary
+                                        ? onResendSecondary(message, mode)
+                                        : onResend(message, mode)
+                                    }
+                                  />
                                   <ChatAction
                                     text={Locale.Chat.Actions.Delete}
                                     icon={<DeleteIcon />}
@@ -6396,54 +6488,67 @@ function ChatComponent() {
                                         : onDelete(message.id ?? i)
                                     }
                                   />
-                                )}
-                                <ChatAction
-                                  text={Locale.Chat.Actions.Copy}
-                                  icon={<CopyIcon />}
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      getMessageTextContent(message),
-                                    )
-                                  }
-                                />
-                                {config.ttsConfig?.enable && (
                                   <ChatAction
-                                    text={
-                                      speechStatus
-                                        ? Locale.Chat.Actions.StopSpeech
-                                        : Locale.Chat.Actions.Speech
-                                    }
-                                    icon={
-                                      speechStatus ? (
-                                        <SpeakStopIcon />
-                                      ) : (
-                                        <SpeakIcon />
-                                      )
-                                    }
+                                    text={Locale.Chat.Actions.Copy}
+                                    icon={<CopyIcon />}
                                     onClick={() =>
-                                      openaiSpeech(
+                                      copyToClipboard(
                                         getMessageTextContent(message),
                                       )
                                     }
                                   />
-                                )}
-                                <ChatAction
-                                  text={Locale.Chat.Actions.EditToInput}
-                                  icon={<EditToInputIcon />}
-                                  onClick={() =>
-                                    setUserInput(getMessageTextContent(message))
-                                  }
-                                />
-                              </>
-                            )}
+                                  {config.ttsConfig?.enable && (
+                                    <ChatAction
+                                      text={
+                                        speechStatus
+                                          ? Locale.Chat.Actions.StopSpeech
+                                          : Locale.Chat.Actions.Speech
+                                      }
+                                      icon={
+                                        speechStatus ? (
+                                          <SpeakStopIcon />
+                                        ) : (
+                                          <SpeakIcon />
+                                        )
+                                      }
+                                      onClick={() =>
+                                        openaiSpeech(
+                                          getMessageTextContent(message),
+                                        )
+                                      }
+                                    />
+                                  )}
+                                  <ChatAction
+                                    text={Locale.Chat.Actions.EditToInput}
+                                    icon={<EditToInputIcon />}
+                                    onClick={() =>
+                                      setUserInput(
+                                        getMessageTextContent(message),
+                                      )
+                                    }
+                                  />
+                                  <ChatAction
+                                    text={Locale.Chat.InputActions.Clear}
+                                    icon={<BreakIcon />}
+                                    onClick={() =>
+                                      isSecondary
+                                        ? onBreakSecondary(message.id ?? i)
+                                        : onBreak(message.id ?? i)
+                                    }
+                                  />
+                                </>
+                              ) : null}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
                     </div>
                   </div>
                   {/* 上下文分割线 */}
                   {shouldShowClearContextDivider && (
-                    <ClearContextDivider index={i} isSecondary={isSecondary} />
+                    <ClearContextDivider
+                      messageId={message.id}
+                      isSecondary={isSecondary}
+                    />
                   )}
                 </Fragment>
               );
@@ -6487,8 +6592,7 @@ function ChatComponent() {
                 treeConversationEnabled && isUser && !!messageBranchTarget;
 
               const shouldShowClearContextDivider =
-                !treeConversationEnabled &&
-                (i === clearContextIndex - 1 || message?.beClear === true);
+                !isContext && !!message?.beClear;
 
               const providerIdForClick =
                 message?.providerType === "custom-provider";
@@ -6863,7 +6967,10 @@ function ChatComponent() {
                     </div>
                   </div>
                   {shouldShowClearContextDivider && (
-                    <ClearContextDivider index={i} isSecondary={false} />
+                    <ClearContextDivider
+                      messageId={message.id}
+                      isSecondary={false}
+                    />
                   )}
                 </Fragment>
               );

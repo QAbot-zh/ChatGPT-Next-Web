@@ -166,7 +166,6 @@ export const DEFAULT_INPUT_TEMPLATE = `{{input}}`; // input / time / model / lan
 // `;
 export const DEFAULT_SYSTEM_TEMPLATE = `
 You are a helpful LLM assitant.
-Current time: {{time}}
 
 Reply language & locale
 - For non-special tasks (e.g., not translation), use the user's primary communication language; if unclear, default to the system language inferred from {{lang}}.

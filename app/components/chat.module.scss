@@ -2277,6 +2277,28 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.14);
 }
 
+.chat-structure-divider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 24px;
+  user-select: none;
+}
+
+.chat-structure-divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--primary);
+  opacity: 0.4;
+}
+
+.chat-structure-divider-label {
+  font-size: 10px;
+  color: var(--primary);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
 @media (max-width: 600px) {
   .chat-navigator {
     display: none;

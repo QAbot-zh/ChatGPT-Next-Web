@@ -127,6 +127,9 @@ export interface ChatSession {
   // 双模型模式相关字段
   dualModelMode?: boolean; // 是否启用双模型模式
   secondaryMessages?: ChatMessage[]; // 副模型消息队列
+  secondaryMessageTree?: Record<string, ChatMessage>;
+  secondaryRootMessageIds?: string[];
+  secondaryActiveRootId?: string;
   secondaryModelConfig?: {
     // 副模型配置 - 只存储与主模型不同的配置
     model: ModelType;
@@ -157,6 +160,65 @@ export const BOT_HELLO: ChatMessage = createMessage({
 
 const NO_ACTIVE_MESSAGE = "";
 
+export type MessageTreeSource = "primary" | "secondary";
+
+function getTreeMessages(session: ChatSession, source: MessageTreeSource) {
+  return source === "secondary"
+    ? session.secondaryMessages ?? []
+    : session.messages;
+}
+
+function setTreeMessages(
+  session: ChatSession,
+  source: MessageTreeSource,
+  messages: ChatMessage[],
+) {
+  if (source === "secondary") {
+    session.secondaryMessages = messages;
+  } else {
+    session.messages = messages;
+  }
+}
+
+function getTreeState(session: ChatSession, source: MessageTreeSource) {
+  return source === "secondary"
+    ? {
+        tree: session.secondaryMessageTree,
+        rootMessageIds: session.secondaryRootMessageIds,
+        activeRootId: session.secondaryActiveRootId,
+      }
+    : {
+        tree: session.messageTree,
+        rootMessageIds: session.rootMessageIds,
+        activeRootId: session.activeRootId,
+      };
+}
+
+function setTreeState(
+  session: ChatSession,
+  source: MessageTreeSource,
+  tree: Record<string, ChatMessage>,
+  rootMessageIds: string[],
+  activeRootId: string | undefined,
+) {
+  if (source === "secondary") {
+    session.secondaryMessageTree = tree;
+    session.secondaryRootMessageIds = rootMessageIds;
+    session.secondaryActiveRootId = activeRootId;
+  } else {
+    session.messageTree = tree;
+    session.rootMessageIds = rootMessageIds;
+    session.activeRootId = activeRootId;
+  }
+}
+
+function getTreeControllerSessionId(
+  session: ChatSession,
+  source: MessageTreeSource,
+) {
+  return source === "secondary" ? `${session.id}-secondary` : session.id;
+}
+
 function normalizeTreeNode(message: ChatMessage, parent?: ChatMessage) {
   message.childrenIds = message.childrenIds?.filter(Boolean) ?? [];
   message.turnId =
@@ -169,12 +231,15 @@ function normalizeTreeNode(message: ChatMessage, parent?: ChatMessage) {
   return message;
 }
 
-export function rebuildMessageTreeFromMessages(session: ChatSession) {
+export function rebuildMessageTreeFromMessages(
+  session: ChatSession,
+  source: MessageTreeSource = "primary",
+) {
   const tree: Record<string, ChatMessage> = {};
   const rootMessageIds: string[] = [];
   let parent: ChatMessage | undefined;
 
-  session.messages.forEach((message) => {
+  getTreeMessages(session, source).forEach((message) => {
     message.parentId = parent?.id;
     normalizeTreeNode(message, parent);
     message.childrenIds = [];
@@ -190,17 +255,18 @@ export function rebuildMessageTreeFromMessages(session: ChatSession) {
     parent = message;
   });
 
-  session.messageTree = tree;
-  session.rootMessageIds = rootMessageIds;
-  session.activeRootId = rootMessageIds[0];
+  setTreeState(session, source, tree, rootMessageIds, rootMessageIds[0]);
 }
 
-function hasMessageTreeBranches(session: ChatSession) {
-  const tree = session.messageTree;
+function hasMessageTreeBranches(
+  session: ChatSession,
+  source: MessageTreeSource = "primary",
+) {
+  const { tree, rootMessageIds } = getTreeState(session, source);
   if (!tree) return false;
 
   const hasRootBranch =
-    (session.rootMessageIds ?? []).filter((id) => tree[id]).length > 1;
+    (rootMessageIds ?? []).filter((id) => tree[id]).length > 1;
   const hasNodeBranch = Object.values(tree).some(
     (message) =>
       (message.childrenIds ?? []).filter((id) => tree[id]).length > 1,
@@ -209,13 +275,16 @@ function hasMessageTreeBranches(session: ChatSession) {
   return hasRootBranch || hasNodeBranch;
 }
 
-export function getActiveMessagePath(session: ChatSession) {
-  const tree = session.messageTree;
-  if (!tree) return session.messages;
+export function getActiveMessagePath(
+  session: ChatSession,
+  source: MessageTreeSource = "primary",
+) {
+  const { tree, rootMessageIds, activeRootId } = getTreeState(session, source);
+  if (!tree) return getTreeMessages(session, source);
 
-  const rootIds = (session.rootMessageIds ?? []).filter((id) => tree[id]);
+  const rootIds = (rootMessageIds ?? []).filter((id) => tree[id]);
   let currentId: string | undefined =
-    session.activeRootId === undefined ? rootIds[0] : session.activeRootId;
+    activeRootId === undefined ? rootIds[0] : activeRootId;
 
   if (!currentId || currentId === NO_ACTIVE_MESSAGE) return [];
 
@@ -239,13 +308,21 @@ export function getActiveMessagePath(session: ChatSession) {
   return messages;
 }
 
-export function syncMessagesFromTree(session: ChatSession) {
-  if (!session.messageTree) return;
-  session.messages = getActiveMessagePath(session);
+export function syncMessagesFromTree(
+  session: ChatSession,
+  source: MessageTreeSource = "primary",
+) {
+  const { tree } = getTreeState(session, source);
+  if (!tree) return;
+  setTreeMessages(session, source, getActiveMessagePath(session, source));
 }
 
-function restoreActiveDescendantPath(session: ChatSession, messageId: string) {
-  const tree = session.messageTree;
+function restoreActiveDescendantPath(
+  session: ChatSession,
+  messageId: string,
+  source: MessageTreeSource,
+) {
+  const { tree } = getTreeState(session, source);
   if (!tree) return;
 
   const visited = new Set<string>();
@@ -279,60 +356,82 @@ function restoreActiveDescendantPath(session: ChatSession, messageId: string) {
   }
 }
 
-export function ensureMessageTree(session: ChatSession) {
-  const messageIds = session.messages.map((m) => m.id);
-  const missingActiveMessage =
-    !session.messageTree || messageIds.some((id) => !session.messageTree?.[id]);
+export function ensureMessageTree(
+  session: ChatSession,
+  source: MessageTreeSource = "primary",
+) {
+  if (source === "primary") {
+    session.enableMessageTree = true;
+  }
+
+  const messages = getTreeMessages(session, source);
+  const { tree } = getTreeState(session, source);
+  const messageIds = messages.map((m) => m.id);
+  const missingActiveMessage = !tree || messageIds.some((id) => !tree[id]);
 
   if (missingActiveMessage) {
-    rebuildMessageTreeFromMessages(session);
+    rebuildMessageTreeFromMessages(session, source);
     return;
   }
 
-  const tree = session.messageTree;
-  if (!tree) return;
+  const treeState = getTreeState(session, source);
+  const currentTree = treeState.tree;
+  if (!currentTree) return;
 
-  Object.values(tree).forEach((message) =>
+  Object.values(currentTree).forEach((message) =>
     normalizeTreeNode(
       message,
-      message.parentId ? tree[message.parentId] : undefined,
+      message.parentId ? currentTree[message.parentId] : undefined,
     ),
   );
-  session.rootMessageIds =
-    session.rootMessageIds?.filter((id) => tree[id]) ??
-    Object.values(tree)
+  const rootMessageIds =
+    treeState.rootMessageIds?.filter((id) => currentTree[id]) ??
+    Object.values(currentTree)
       .filter((message) => !message.parentId)
       .map((message) => message.id);
+  const activeRootId =
+    treeState.activeRootId !== NO_ACTIVE_MESSAGE &&
+    treeState.activeRootId &&
+    !currentTree[treeState.activeRootId]
+      ? rootMessageIds[0]
+      : treeState.activeRootId;
 
-  if (
-    session.activeRootId !== NO_ACTIVE_MESSAGE &&
-    session.activeRootId &&
-    !tree[session.activeRootId]
-  ) {
-    session.activeRootId = session.rootMessageIds[0];
-  }
+  setTreeState(session, source, currentTree, rootMessageIds, activeRootId);
 
-  syncMessagesFromTree(session);
+  syncMessagesFromTree(session, source);
+}
+
+function ensureSessionMessageTrees(session: ChatSession) {
+  ensureMessageTree(session, "primary");
+  ensureMessageTree(session, "secondary");
 }
 
 export function activateMessagePath(
   session: ChatSession,
   messageId: string | null,
-  options?: { truncate?: boolean },
+  options?: { truncate?: boolean; source?: MessageTreeSource },
 ) {
-  ensureMessageTree(session);
-  const tree = session.messageTree;
+  const source = options?.source ?? "primary";
+  ensureMessageTree(session, source);
+  const { tree } = getTreeState(session, source);
   if (!tree) return;
 
   if (messageId === null) {
-    session.activeRootId = NO_ACTIVE_MESSAGE;
-    session.messages = [];
+    const treeState = getTreeState(session, source);
+    setTreeState(
+      session,
+      source,
+      tree,
+      treeState.rootMessageIds ?? [],
+      NO_ACTIVE_MESSAGE,
+    );
+    setTreeMessages(session, source, []);
     return;
   }
 
   const target = tree[messageId];
   if (!target) {
-    syncMessagesFromTree(session);
+    syncMessagesFromTree(session, source);
     return;
   }
 
@@ -345,29 +444,40 @@ export function activateMessagePath(
     current = current.parentId ? tree[current.parentId] : undefined;
   }
 
-  session.activeRootId = path[0]?.id;
+  const treeState = getTreeState(session, source);
+  setTreeState(
+    session,
+    source,
+    tree,
+    treeState.rootMessageIds ?? [],
+    path[0]?.id,
+  );
   for (let i = 0; i < path.length - 1; i += 1) {
     path[i].activeChildId = path[i + 1].id;
   }
   if (options?.truncate) {
     target.activeChildId = NO_ACTIVE_MESSAGE;
   } else {
-    restoreActiveDescendantPath(session, target.id);
+    restoreActiveDescendantPath(session, target.id, source);
   }
-  syncMessagesFromTree(session);
+  syncMessagesFromTree(session, source);
 }
 
 export function appendMessagesToActivePath(
   session: ChatSession,
   newMessages: ChatMessage[],
+  source: MessageTreeSource = "primary",
 ) {
-  ensureMessageTree(session);
-  if (!session.messageTree) {
-    rebuildMessageTreeFromMessages(session);
+  ensureMessageTree(session, source);
+  const treeState = getTreeState(session, source);
+  if (!treeState.tree) {
+    rebuildMessageTreeFromMessages(session, source);
   }
 
-  const tree = session.messageTree!;
-  let parent = getActiveMessagePath(session).at(-1);
+  const tree = getTreeState(session, source).tree!;
+  let rootMessageIds = getTreeState(session, source).rootMessageIds ?? [];
+  let activeRootId = getTreeState(session, source).activeRootId;
+  let parent = getActiveMessagePath(session, source).at(-1);
 
   newMessages.forEach((message) => {
     message.parentId = parent?.id;
@@ -384,35 +494,45 @@ export function appendMessagesToActivePath(
       parentNode.childrenIds.push(message.id);
       parentNode.activeChildId = message.id;
     } else {
-      session.rootMessageIds = (session.rootMessageIds ?? []).filter(
+      rootMessageIds = rootMessageIds.filter(
         (id) => id !== message.id && tree[id],
       );
-      session.rootMessageIds.push(message.id);
-      session.activeRootId = message.id;
+      rootMessageIds.push(message.id);
+      activeRootId = message.id;
     }
 
     parent = message;
   });
 
-  syncMessagesFromTree(session);
+  setTreeState(session, source, tree, rootMessageIds, activeRootId);
+  syncMessagesFromTree(session, source);
 }
 
-export function removeMessageFromTree(session: ChatSession, messageId: string) {
-  ensureMessageTree(session);
-  const activeMessagesBeforeDelete = session.messages.slice();
-  const tree = session.messageTree;
+export function removeMessageFromTree(
+  session: ChatSession,
+  messageId: string,
+  source: MessageTreeSource = "primary",
+) {
+  ensureMessageTree(session, source);
+  const activeMessagesBeforeDelete = getTreeMessages(session, source).slice();
+  const { tree, rootMessageIds, activeRootId } = getTreeState(session, source);
   if (!tree?.[messageId]) {
     const deletedMessageIds = [messageId];
-    cleanupDeletedMessageRuntimeState(session, deletedMessageIds);
-    session.messages = session.messages.filter(
-      (message) => message.id !== messageId,
+    cleanupDeletedMessageRuntimeState(session, deletedMessageIds, source);
+    setTreeMessages(
+      session,
+      source,
+      getTreeMessages(session, source).filter(
+        (message) => message.id !== messageId,
+      ),
     );
     resetMemoryIfDeletedSummarizedMessages(
       session,
       activeMessagesBeforeDelete,
       deletedMessageIds,
+      source,
     );
-    syncSessionDerivedState(session);
+    syncSessionDerivedState(session, source);
     return;
   }
 
@@ -427,7 +547,7 @@ export function removeMessageFromTree(session: ChatSession, messageId: string) {
     (node.childrenIds ?? []).forEach(collect);
   };
   collect(messageId);
-  cleanupDeletedMessageRuntimeState(session, idsToDelete);
+  cleanupDeletedMessageRuntimeState(session, idsToDelete, source);
 
   const ownerParentId =
     message.parentId && tree[message.parentId]?.childrenIds?.includes(messageId)
@@ -436,9 +556,9 @@ export function removeMessageFromTree(session: ChatSession, messageId: string) {
           (node) => node.childrenIds?.includes(messageId),
         )?.id;
   const isRootMessage =
-    !ownerParentId || (session.rootMessageIds ?? []).includes(messageId);
+    !ownerParentId || (rootMessageIds ?? []).includes(messageId);
   const siblings = isRootMessage
-    ? session.rootMessageIds ?? []
+    ? rootMessageIds ?? []
     : tree[ownerParentId]?.childrenIds ?? [];
   const deletingIndex = siblings.indexOf(messageId);
   const nextSiblings = siblings.filter((id) => !idsToDeleteSet.has(id));
@@ -449,17 +569,17 @@ export function removeMessageFromTree(session: ChatSession, messageId: string) {
 
   idsToDelete.forEach((id) => delete tree[id]);
 
+  let nextRootMessageIds = rootMessageIds ?? [];
+  let nextActiveRootId = activeRootId;
   if (isRootMessage) {
-    session.rootMessageIds = nextSiblings;
-    session.activeRootId = nextActiveId;
+    nextRootMessageIds = nextSiblings;
+    nextActiveRootId = nextActiveId;
   } else if (ownerParentId && tree[ownerParentId]) {
     tree[ownerParentId].childrenIds = nextSiblings;
     tree[ownerParentId].activeChildId = nextActiveId;
   }
 
-  session.rootMessageIds = (session.rootMessageIds ?? []).filter(
-    (id) => tree[id],
-  );
+  nextRootMessageIds = nextRootMessageIds.filter((id) => tree[id]);
   Object.values(tree).forEach((node) => {
     node.childrenIds = (node.childrenIds ?? []).filter((id) => tree[id]);
     if (
@@ -471,32 +591,38 @@ export function removeMessageFromTree(session: ChatSession, messageId: string) {
     }
   });
   if (
-    session.activeRootId &&
-    session.activeRootId !== NO_ACTIVE_MESSAGE &&
-    !tree[session.activeRootId]
+    nextActiveRootId &&
+    nextActiveRootId !== NO_ACTIVE_MESSAGE &&
+    !tree[nextActiveRootId]
   ) {
-    session.activeRootId = session.rootMessageIds[0] ?? NO_ACTIVE_MESSAGE;
+    nextActiveRootId = nextRootMessageIds[0] ?? NO_ACTIVE_MESSAGE;
   }
 
-  syncMessagesFromTree(session);
+  setTreeState(session, source, tree, nextRootMessageIds, nextActiveRootId);
+  syncMessagesFromTree(session, source);
   resetMemoryIfDeletedSummarizedMessages(
     session,
     activeMessagesBeforeDelete,
     idsToDelete,
+    source,
   );
-  syncSessionDerivedState(session);
+  syncSessionDerivedState(session, source);
 }
 
-export function getMessageBranchInfo(session: ChatSession, messageId: string) {
-  ensureMessageTree(session);
-  const tree = session.messageTree;
+export function getMessageBranchInfo(
+  session: ChatSession,
+  messageId: string,
+  source: MessageTreeSource = "primary",
+) {
+  ensureMessageTree(session, source);
+  const { tree, rootMessageIds } = getTreeState(session, source);
   const message = tree?.[messageId];
   if (!tree || !message) return null;
 
   const siblings = (
     message.parentId
       ? tree[message.parentId]?.childrenIds ?? []
-      : session.rootMessageIds ?? []
+      : rootMessageIds ?? []
   ).filter((id) => tree[id]);
   const index = siblings.indexOf(messageId);
 
@@ -511,16 +637,17 @@ export function switchMessageBranchInSession(
   session: ChatSession,
   messageId: string,
   delta: number,
+  source: MessageTreeSource = "primary",
 ) {
-  ensureMessageTree(session);
-  const tree = session.messageTree;
+  ensureMessageTree(session, source);
+  const { tree, rootMessageIds } = getTreeState(session, source);
   const message = tree?.[messageId];
   if (!tree || !message) return;
 
   const siblings = (
     message.parentId
       ? tree[message.parentId]?.childrenIds ?? []
-      : session.rootMessageIds ?? []
+      : rootMessageIds ?? []
   ).filter((id) => tree[id]);
   const index = siblings.indexOf(messageId);
   if (index < 0 || siblings.length <= 1) return;
@@ -529,7 +656,7 @@ export function switchMessageBranchInSession(
   if (nextIndex < 0 || nextIndex >= siblings.length) return;
 
   const nextId = siblings[nextIndex];
-  activateMessagePath(session, nextId);
+  activateMessagePath(session, nextId, { source });
 }
 
 function createEmptySession(): ChatSession {
@@ -537,7 +664,7 @@ function createEmptySession(): ChatSession {
     id: nanoid(),
     topic: DEFAULT_TOPIC,
     memoryPrompt: "",
-    enableMessageTree: false,
+    enableMessageTree: true,
     messageTree: {},
     rootMessageIds: [],
     activeRootId: undefined,
@@ -555,6 +682,9 @@ function createEmptySession(): ChatSession {
     // 双模型模式默认值
     dualModelMode: false,
     secondaryMessages: [],
+    secondaryMessageTree: {},
+    secondaryRootMessageIds: [],
+    secondaryActiveRootId: undefined,
     secondaryModelConfig: undefined,
     secondaryMemoryPrompt: "",
     secondaryLastSummarizeIndex: 0,
@@ -609,28 +739,46 @@ function calculateSessionStat(messages: ChatMessage[]): ChatStat {
   );
 }
 
-function syncSessionDerivedState(session: ChatSession) {
-  session.stat = calculateSessionStat(session.messages);
-  session.lastSummarizeIndex = Math.min(
-    session.lastSummarizeIndex ?? 0,
-    session.messages.length,
-  );
+function syncSessionDerivedState(
+  session: ChatSession,
+  source: MessageTreeSource = "primary",
+) {
+  const messages = getTreeMessages(session, source);
 
-  const clearContextIndex = session.messages.reduce<number | undefined>(
+  if (source === "primary") {
+    session.stat = calculateSessionStat(messages);
+    session.lastSummarizeIndex = Math.min(
+      session.lastSummarizeIndex ?? 0,
+      messages.length,
+    );
+  } else {
+    session.secondaryLastSummarizeIndex = Math.min(
+      session.secondaryLastSummarizeIndex ?? 0,
+      messages.length,
+    );
+  }
+
+  const clearContextIndex = messages.reduce<number | undefined>(
     (index, message, i) => (message.beClear ? i + 1 : index),
     undefined,
   );
-  session.clearContextIndex = clearContextIndex;
+  if (source === "primary") {
+    session.clearContextIndex = clearContextIndex;
+  } else {
+    session.secondaryClearContextIndex = clearContextIndex;
+  }
   session.lastUpdate = Date.now();
 }
 
 function cleanupDeletedMessageRuntimeState(
   session: ChatSession,
   deletedMessageIds: string[],
+  source: MessageTreeSource = "primary",
 ) {
+  const controllerSessionId = getTreeControllerSessionId(session, source);
   deletedMessageIds.forEach((id) => {
-    ChatControllerPool.stop(session.id, id);
-    ChatControllerPool.remove(session.id, id);
+    ChatControllerPool.stop(controllerSessionId, id);
+    ChatControllerPool.remove(controllerSessionId, id);
   });
 }
 
@@ -638,8 +786,15 @@ function resetMemoryIfDeletedSummarizedMessages(
   session: ChatSession,
   activeMessagesBeforeDelete: ChatMessage[],
   deletedMessageIds: string[],
+  source: MessageTreeSource = "primary",
 ) {
-  if (!session.memoryPrompt || !session.lastSummarizeIndex) return;
+  const memoryPrompt =
+    source === "primary" ? session.memoryPrompt : session.secondaryMemoryPrompt;
+  const lastSummarizeIndex =
+    source === "primary"
+      ? session.lastSummarizeIndex
+      : session.secondaryLastSummarizeIndex;
+  if (!memoryPrompt || !lastSummarizeIndex) return;
 
   const deletedMessageIdSet = new Set(deletedMessageIds);
   const firstDeletedActiveIndex = activeMessagesBeforeDelete.findIndex(
@@ -647,10 +802,15 @@ function resetMemoryIfDeletedSummarizedMessages(
   );
   if (
     firstDeletedActiveIndex >= 0 &&
-    firstDeletedActiveIndex < session.lastSummarizeIndex
+    firstDeletedActiveIndex < lastSummarizeIndex
   ) {
-    session.memoryPrompt = "";
-    session.lastSummarizeIndex = 0;
+    if (source === "primary") {
+      session.memoryPrompt = "";
+      session.lastSummarizeIndex = 0;
+    } else {
+      session.secondaryMemoryPrompt = "";
+      session.secondaryLastSummarizeIndex = 0;
+    }
   }
 }
 
@@ -745,7 +905,11 @@ export const useChatStore = createPersistStore(
         const newSession = createEmptySession();
 
         newSession.topic = currentSession.topic;
-        newSession.enableMessageTree = !!currentSession.enableMessageTree;
+        newSession.enableMessageTree = true;
+        newSession.dualModelMode = !!currentSession.dualModelMode;
+        newSession.secondaryModelConfig = currentSession.secondaryModelConfig
+          ? { ...currentSession.secondaryModelConfig }
+          : undefined;
         // 深拷贝消息
         newSession.messages = currentSession.messages.map((msg) => ({
           ...msg,
@@ -758,6 +922,19 @@ export const useChatStore = createPersistStore(
           branchKind: "normal",
         }));
         rebuildMessageTreeFromMessages(newSession);
+        newSession.secondaryMessages = (
+          currentSession.secondaryMessages ?? []
+        ).map((msg) => ({
+          ...msg,
+          id: nanoid(),
+          parentId: undefined,
+          childrenIds: [],
+          activeChildId: undefined,
+          turnId: undefined,
+          originId: undefined,
+          branchKind: "normal",
+        }));
+        rebuildMessageTreeFromMessages(newSession, "secondary");
         newSession.mask = {
           ...currentSession.mask,
           modelConfig: {
@@ -927,10 +1104,7 @@ export const useChatStore = createPersistStore(
         }
 
         const session = sessions[index];
-        ensureMessageTree(session);
-        if (session.enableMessageTree && session.dualModelMode) {
-          session.dualModelMode = false;
-        }
+        ensureSessionMessageTrees(session);
 
         return session;
       },
@@ -1120,9 +1294,11 @@ export const useChatStore = createPersistStore(
             secondaryUserMessage &&
             secondaryBotMessage
           ) {
-            session.secondaryMessages = (
-              session.secondaryMessages || []
-            ).concat([secondaryUserMessage, secondaryBotMessage]);
+            appendMessagesToActivePath(
+              session,
+              [secondaryUserMessage, secondaryBotMessage],
+              "secondary",
+            );
           }
         });
 
@@ -1258,7 +1434,9 @@ export const useChatStore = createPersistStore(
                 botMsg.content = message;
               }
               get().updateCurrentSession((session) => {
-                session.secondaryMessages = session.secondaryMessages?.concat();
+                session.secondaryMessages = (
+                  session.secondaryMessages ?? []
+                ).concat();
               });
             },
             onFinish(message) {
@@ -1285,7 +1463,9 @@ export const useChatStore = createPersistStore(
                 botMsg.date = new Date().toLocaleString();
               }
               get().updateCurrentSession((session) => {
-                session.secondaryMessages = session.secondaryMessages?.concat();
+                session.secondaryMessages = (
+                  session.secondaryMessages ?? []
+                ).concat();
               });
               ChatControllerPool.remove(`${session.id}-secondary`, botMsg.id);
             },
@@ -1300,7 +1480,9 @@ export const useChatStore = createPersistStore(
               botMsg.streaming = false;
               botMsg.isError = !isAborted;
               get().updateCurrentSession((session) => {
-                session.secondaryMessages = session.secondaryMessages?.concat();
+                session.secondaryMessages = (
+                  session.secondaryMessages ?? []
+                ).concat();
               });
               ChatControllerPool.remove(`${session.id}-secondary`, botMsg.id);
               console.error("[Chat] secondary model failed ", error);
@@ -1479,21 +1661,30 @@ export const useChatStore = createPersistStore(
         set(() => ({ sessions }));
       },
 
-      switchMessageBranch(messageId: string, delta: number) {
+      switchMessageBranch(
+        messageId: string,
+        delta: number,
+        source: MessageTreeSource = "primary",
+      ) {
         get().updateCurrentSession((session) => {
-          if (!session.enableMessageTree) return;
-          switchMessageBranchInSession(session, messageId, delta);
+          switchMessageBranchInSession(session, messageId, delta, source);
         });
       },
 
       resetSession() {
         get().updateCurrentSession((session) => {
           session.messages = [];
-          session.enableMessageTree = false;
+          session.enableMessageTree = true;
           session.messageTree = {};
           session.rootMessageIds = [];
           session.activeRootId = undefined;
           session.memoryPrompt = "";
+          session.secondaryMessages = [];
+          session.secondaryMessageTree = {};
+          session.secondaryRootMessageIds = [];
+          session.secondaryActiveRootId = undefined;
+          session.secondaryMemoryPrompt = "";
+          session.secondaryLastSummarizeIndex = 0;
           session.secondaryClearContextIndex = undefined;
         });
       },
@@ -1740,7 +1931,7 @@ export const useChatStore = createPersistStore(
       updateCurrentSession(updater: (session: ChatSession) => void) {
         const sessions = get().sessions;
         const index = get().currentSessionIndex;
-        ensureMessageTree(sessions[index]);
+        ensureSessionMessageTrees(sessions[index]);
         updater(sessions[index]);
         set(() => ({ sessions }));
       },
@@ -1748,7 +1939,7 @@ export const useChatStore = createPersistStore(
       updateSession(index: number, updater: (session: ChatSession) => void) {
         const sessions = get().sessions;
         if (index < 0 || index >= sessions.length) return;
-        ensureMessageTree(sessions[index]);
+        ensureSessionMessageTrees(sessions[index]);
         updater(sessions[index]);
         set(() => ({ sessions }));
       },
@@ -1760,7 +1951,7 @@ export const useChatStore = createPersistStore(
         const sessions = get().sessions;
         const index = sessions.findIndex((s) => s.id === targetSession.id);
         if (index < 0) return;
-        ensureMessageTree(sessions[index]);
+        ensureSessionMessageTrees(sessions[index]);
         // Save message content before updates to compare later
         const messagesBeforeUpdate = sessions[index].messages.map((m) => ({
           id: m.id,
@@ -1814,26 +2005,13 @@ export const useChatStore = createPersistStore(
       // ========== 双模型模式相关方法 ==========
       toggleMessageTreeMode() {
         get().updateCurrentSession((session) => {
-          const enableMessageTree = !session.enableMessageTree;
-
-          if (enableMessageTree) {
-            session.enableMessageTree = true;
-            session.dualModelMode = false;
-            ensureMessageTree(session);
-            return;
-          }
-
-          syncMessagesFromTree(session);
-          session.enableMessageTree = false;
-          rebuildMessageTreeFromMessages(session);
+          session.enableMessageTree = true;
+          ensureSessionMessageTrees(session);
         });
       },
 
       toggleDualModelMode(displayName?: string) {
-        const session = get().currentSession();
         get().updateCurrentSession((session) => {
-          if (session.enableMessageTree) return;
-
           session.dualModelMode = !session.dualModelMode;
 
           // 首次开启时初始化副模型配置
@@ -1849,6 +2027,7 @@ export const useChatStore = createPersistStore(
               // historyMessageCount, sendMemory, temperature 等
             };
             session.secondaryMessages = [];
+            rebuildMessageTreeFromMessages(session, "secondary");
             session.secondaryMemoryPrompt = "";
             session.secondaryLastSummarizeIndex = 0;
           }
@@ -1875,6 +2054,9 @@ export const useChatStore = createPersistStore(
       clearSecondaryMessages() {
         get().updateCurrentSession((session) => {
           session.secondaryMessages = [];
+          session.secondaryMessageTree = {};
+          session.secondaryRootMessageIds = [];
+          session.secondaryActiveRootId = undefined;
           session.secondaryMemoryPrompt = "";
           session.secondaryLastSummarizeIndex = 0;
         });
@@ -1885,7 +2067,8 @@ export const useChatStore = createPersistStore(
         const session = get().currentSession();
         const secondaryConfig = session.secondaryModelConfig;
         const primaryConfig = session.mask.modelConfig;
-        const messages = session.secondaryMessages?.slice() || [];
+        ensureMessageTree(session, "secondary");
+        const messages = getActiveMessagePath(session, "secondary").slice();
         const totalMessageCount = messages.length;
 
         // 检查 beClear 标记，找到清除上下文的位置
@@ -2013,7 +2196,7 @@ export const useChatStore = createPersistStore(
   },
   {
     name: StoreKey.Chat,
-    version: 3.8,
+    version: 3.9,
     onRehydrateStorage() {
       // 水合完成后做一次自动备份：把 IDB 中的 chat 数据快照写入 localStorage。
       // 用 setTimeout 推到 microtask 之外，避免阻塞首屏渲染。
@@ -2115,12 +2298,7 @@ export const useChatStore = createPersistStore(
       }
       if (version < 3.7) {
         newState.sessions.forEach((s) => {
-          if (!hasMessageTreeBranches(s)) {
-            s.enableMessageTree = false;
-          }
-          if (s.enableMessageTree) {
-            s.dualModelMode = false;
-          }
+          s.enableMessageTree = true;
         });
       }
       if (version < 3.8) {
@@ -2137,6 +2315,15 @@ export const useChatStore = createPersistStore(
           ) {
             s.mask.modelConfig.compressMessageLengthThreshold = 2000;
           }
+        });
+      }
+      if (version < 3.9) {
+        newState.sessions.forEach((s) => {
+          s.enableMessageTree = true;
+          rebuildMessageTreeFromMessages(s);
+          rebuildMessageTreeFromMessages(s, "secondary");
+          s.mask.modelConfig.historyMessageCount = 20;
+          s.mask.modelConfig.compressMessageLengthThreshold = 20000;
         });
       }
 
