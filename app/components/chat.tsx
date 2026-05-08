@@ -3256,14 +3256,26 @@ function ChatComponent() {
 
   // 双模型模式状态
   const isDualMode = session.dualModelMode || false;
-  const secondaryTreeSession = {
-    ...session,
-    messages: session.secondaryMessages ?? [],
-    messageTree: session.secondaryMessageTree ?? {},
-    rootMessageIds: session.secondaryRootMessageIds ?? [],
-    activeRootId: session.secondaryActiveRootId,
-    enableMessageTree: treeConversationEnabled,
-  } as ChatSession;
+  const secondaryTreeSession = useMemo(
+    () =>
+      ({
+        ...session,
+        mask: { ...session.mask },
+        messages: session.secondaryMessages ?? [],
+        messageTree: session.secondaryMessageTree ?? {},
+        rootMessageIds: session.secondaryRootMessageIds ?? [],
+        activeRootId: session.secondaryActiveRootId,
+        enableMessageTree: treeConversationEnabled,
+      }) as ChatSession,
+    [
+      session,
+      treeConversationEnabled,
+      session.secondaryMessages,
+      session.secondaryMessageTree,
+      session.secondaryRootMessageIds,
+      session.secondaryActiveRootId,
+    ],
+  );
   const [showSecondaryModelSelector, setShowSecondaryModelSelector] =
     useState(false);
   const [showPrimaryModelSelector, setShowPrimaryModelSelector] =
