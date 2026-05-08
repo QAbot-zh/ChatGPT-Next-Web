@@ -27,9 +27,18 @@
   - 左右分栏布局显示主模型和副模型的回复
   - 独立的消息队列管理，共享用户消息
   - 点击模型名称或标签可快速切换模型
+
+  <div align="center">
+    <img src="./docs/images/dual-model.png" width="80%" alt="双模型对话功能展示">
+  </div>
+
 - **树形会话 / 分支导航**
   - 将直接重试、补充要求后重试组织为分支，保留不同回答路径
   - 提供会话列表、层级结构和图形化树状导航，支持跳转到任意节点
+  <div style="display: flex; justify-content: center; gap: 50px;">
+    <img src="./docs/images/tree-structure.png" width="30%" alt="树形会话的结构导航">
+    <img src="./docs/images/tree-graph.png" width="30%" alt="树形会话的树形图导航">
+  </div>
 - **继续补全与上下文清理**
   - 一键继续补全上文未完成内容，可自定义继续补全提示词
   - 支持隐藏继续补全产生的 user 消息，清理上下文会显示分隔提示
