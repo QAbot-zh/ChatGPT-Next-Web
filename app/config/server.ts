@@ -17,6 +17,7 @@ declare global {
       BUILD_APP?: string; // is building desktop app
 
       HIDE_USER_API_KEY?: string; // disable user's api key input
+      DISABLE_VERCEL_INSIGHTS?: string; // disable Vercel analytics and speed insights
       DISABLE_GPT4?: string; // allow user to use gpt-4 or not
       ENABLE_BALANCE_QUERY?: string; // allow user to query balance or not
       DISABLE_FAST_LINK?: string; // disallow parse settings from url or not
@@ -148,6 +149,9 @@ export const getServerSideConfig = () => {
   const isAzure = !!process.env.AZURE_URL;
   const isGoogle = !!process.env.GOOGLE_API_KEY;
   const isAnthropic = !!process.env.ANTHROPIC_API_KEY;
+  const disableVercelInsights =
+    process.env.DISABLE_VERCEL_INSIGHTS === "1" ||
+    process.env.DISABLE_VERCEL_INSIGHTS === "true";
 
   const fastApiKeyEnvVar = process.env.FAST_API_KEY ?? "";
   const fastApiKeys = fastApiKeyEnvVar.split(",").map((v) => v.trim());
@@ -201,6 +205,7 @@ export const getServerSideConfig = () => {
 
     proxyUrl: process.env.PROXY_URL,
     isVercel: !!process.env.VERCEL,
+    disableVercelInsights,
 
     hideUserApiKey: !!process.env.HIDE_USER_API_KEY,
     disableGPT4,

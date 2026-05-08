@@ -178,6 +178,10 @@ anthropic claude Api Url.
 
 > 自定义渠道代理功能允许用户通过服务器转发请求到第三方 API，解决浏览器跨域限制问题。如果你不希望用户使用此功能，可以通过此环境变量禁用。
 
+### `DISABLE_VERCEL_INSIGHTS` （可选）
+
+如果你想禁用 Vercel Analytics 和 Speed Insights，将此环境变量设置为 1 即可。Cloudflare Pages 部署建议配置该变量，避免请求 `/_vercel/insights/script.js` 和 `/_vercel/speed-insights/script.js`。
+
 ### `WHITE_WEBDEV_ENDPOINTS` (可选)
 
 如果你想增加允许访问的webdav服务地址，可以使用该选项，格式要求：

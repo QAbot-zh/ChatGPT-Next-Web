@@ -246,6 +246,7 @@
 | `ENABLE_BALANCE_QUERY`     | 设置为 `1` 允许用户查询 API 余额                                                 | -                         |
 | `DISABLE_FAST_LINK`        | 设置为 `1` 禁止通过 URL 解析参数                                                 | -                         |
 | `DISABLE_CUSTOM_PROXY`     | 设置为 `1` 禁用自定义渠道的服务器代理功能                                         | -                         |
+| `DISABLE_VERCEL_INSIGHTS`  | 设置为 `1` 禁用 Vercel Analytics 和 Speed Insights                              | -                         |
 
 ### 自定义显示和功能变量
 

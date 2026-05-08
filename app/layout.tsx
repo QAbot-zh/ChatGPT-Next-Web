@@ -79,7 +79,7 @@ export default function RootLayout({
       </head>
       <body>
         {children}
-        {serverConfig?.isVercel && (
+        {serverConfig?.isVercel && !serverConfig?.disableVercelInsights && (
           <>
             <SpeedInsights />
           </>
