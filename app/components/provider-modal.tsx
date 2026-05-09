@@ -100,7 +100,7 @@ const KeyItem = ({
 
   const checkBalance = async () => {
     if (baseUrl.endsWith("#")) {
-      showToast("当前渠道不支持余额查询");
+      showToast(Locale.CustomProvider.Toast.BalanceNotSupported);
       return;
     }
     setLoading(true);
@@ -124,14 +124,16 @@ const KeyItem = ({
           const formattedBalance = Number(result.totalBalance).toFixed(2);
           setBalance(`${result.currency} ${formattedBalance}`);
         } catch (e) {
-          showToast("余额格式化失败");
+          showToast(Locale.CustomProvider.Toast.BalanceFormatFailed);
         }
       } else {
-        showToast(result?.error || "查询失败或不支持查询");
+        showToast(
+          result?.error || Locale.CustomProvider.Toast.BalanceQueryFailed,
+        );
       }
     } catch (error) {
       console.error("查询余额出错:", error);
-      showToast("查询余额失败");
+      showToast(Locale.CustomProvider.Toast.BalanceQueryError);
     } finally {
       setLoading(false);
     }
@@ -140,10 +142,10 @@ const KeyItem = ({
   const handleCopyApiKey = async () => {
     try {
       await navigator.clipboard.writeText(apiKey);
-      showToast("API密钥已复制到剪贴板");
+      showToast(Locale.CustomProvider.Toast.KeyCopied);
     } catch (error) {
       console.error("复制失败:", error);
-      showToast("复制失败");
+      showToast(Locale.CustomProvider.Toast.CopyFailed);
     }
   };
 
@@ -155,7 +157,7 @@ const KeyItem = ({
         <div
           className={styles.keyText}
           onClick={handleCopyApiKey}
-          title="copy the key"
+          title={Locale.CustomProvider.CopyKey}
         >
           {apiKey}
         </div>
@@ -184,10 +186,10 @@ const KeyItem = ({
             text="$"
             bordered
             onClick={checkBalance}
-            title="查询余额"
+            title={Locale.CustomProvider.RefreshBalance}
           />
         ) : loading || externalLoading ? (
-          <div style={{ width: "20px", height: "20px" }}>
+          <div className={styles.loadingIconBox}>
             <LoadingIcon />
           </div>
         ) : null}
@@ -195,7 +197,7 @@ const KeyItem = ({
         {/* Add test button */}
         {onTest &&
           (isTesting ? (
-            <div style={{ width: "20px", height: "20px" }}>
+            <div className={styles.loadingIconBox}>
               <LoadingIcon />
             </div>
           ) : (
@@ -203,7 +205,7 @@ const KeyItem = ({
               text="Test"
               bordered
               onClick={onTest}
-              title="测试API密钥连通性"
+              title={Locale.CustomProvider.TestKey}
             />
           ))}
         <IconButton
@@ -211,12 +213,16 @@ const KeyItem = ({
           text="Delete"
           bordered
           onClick={() => onDelete(index)}
-          title="删除密钥"
+          title={Locale.CustomProvider.DeleteKeyTitle}
         />
         {onToggleDisable && (
           <div
             className={styles.statusToggleContainer}
-            title={isDisabled ? "启用此密钥" : "禁用此密钥"}
+            title={
+              isDisabled
+                ? Locale.CustomProvider.ToggleEnable
+                : Locale.CustomProvider.ToggleDisable
+            }
           >
             <div
               className={`${styles.toggleSwitch} ${
@@ -317,8 +323,16 @@ export function ProviderModal(props: ProviderModalProps) {
         )
         .join(", ");
       const moreText =
-        nonAsciiChars.length > 3 ? ` 等${nonAsciiChars.length}个` : "";
-      return `检测到异常字符: ${details}${moreText}。可能是复制时带入的特殊符号，请检查并重新输入。`;
+        nonAsciiChars.length > 3
+          ? Locale.CustomProvider.NonAsciiMore.replace(
+              "{count}",
+              String(nonAsciiChars.length),
+            )
+          : "";
+      return Locale.CustomProvider.NonAsciiError.replace(
+        "{details}",
+        details,
+      ).replace("{more}", moreText);
     }
 
     return null;
@@ -402,7 +416,7 @@ export function ProviderModal(props: ProviderModalProps) {
   const [rawInput, setRawInput] = useState("");
   const parseRawInput = () => {
     if (!rawInput.trim()) {
-      showToast("请输入需要解析的内容");
+      showToast(Locale.CustomProvider.Toast.ParsingEmpty);
       return;
     }
 
@@ -455,7 +469,7 @@ export function ProviderModal(props: ProviderModalProps) {
     // setRawInput("");
 
     // Show success message
-    showToast("解析成功");
+    showToast(Locale.CustomProvider.Toast.ParsingSuccess);
   };
 
   const handleChange = (name: string, value: string) => {
@@ -493,10 +507,10 @@ export function ProviderModal(props: ProviderModalProps) {
 
   const handleClose = async () => {
     const confirmContent = (
-      <div>
-        <div>{"可能有未保存的更改，是否要保存当前渠道的修改？"}</div>
-        <div style={{ marginTop: "8px", fontWeight: "500", color: "#dc2626" }}>
-          此操作执行后无法撤回，是否继续？
+      <div className={styles.confirmDialogContent}>
+        <div>{Locale.CustomProvider.Confirm.Unsaved.Title}</div>
+        <div className={styles.confirmDangerText}>
+          {Locale.CustomProvider.Confirm.Unsaved.Danger}
         </div>
       </div>
     );
@@ -654,7 +668,12 @@ export function ProviderModal(props: ProviderModalProps) {
           setModels(formData.models);
         }
       } else {
-        showToast(`获取模型列表失败: ${error}`);
+        showToast(
+          Locale.CustomProvider.Toast.FetchModelsFailed.replace(
+            "{error}",
+            String(error),
+          ),
+        );
       }
     } finally {
       setIsLoadingModels(false);
@@ -912,14 +931,14 @@ export function ProviderModal(props: ProviderModalProps) {
   // Function to add a new key to the list
   const addKeyToList = () => {
     if (!newKey.trim()) {
-      showToast("API Key cannot be empty");
+      showToast(Locale.CustomProvider.Toast.KeyEmpty);
       return;
     }
 
     // 检查是否有非标准字符
     const validationError = validateApiKey(newKey);
     if (validationError) {
-      showToast("API Key 包含非标准字符，请先修正后再添加");
+      showToast(Locale.CustomProvider.Toast.KeyNonStandard);
       return;
     }
 
@@ -929,12 +948,12 @@ export function ProviderModal(props: ProviderModalProps) {
       .filter(Boolean);
 
     if (keys.length === 0) {
-      showToast("API Key cannot be empty");
+      showToast(Locale.CustomProvider.Toast.KeyEmpty);
       return;
     }
     const uniqueNewKeys = keys.filter((k) => !keyList.includes(k));
     if (uniqueNewKeys.length === 0) {
-      showToast("All API Keys already exist");
+      showToast(Locale.CustomProvider.Toast.KeyDuplicate);
       return;
     }
 
@@ -954,7 +973,12 @@ export function ProviderModal(props: ProviderModalProps) {
     });
 
     setNewKey("");
-    showToast(`${uniqueNewKeys.length} Keys had added successfully`);
+    showToast(
+      Locale.CustomProvider.Toast.KeysAdded.replace(
+        "{count}",
+        String(uniqueNewKeys.length),
+      ),
+    );
   };
 
   // Function to remove a key from the list
@@ -965,19 +989,8 @@ export function ProviderModal(props: ProviderModalProps) {
     // Show confirmation dialog
     const confirmContent = (
       <div>
-        <div>{"Are you sure you want to delete this API key?"}</div>
-        <div
-          style={{
-            marginTop: "8px",
-            padding: "6px 10px",
-            backgroundColor: "#f9fafb",
-            borderRadius: "4px",
-            fontFamily: "monospace",
-            wordBreak: "break-all",
-          }}
-        >
-          {keyToDelete}
-        </div>
+        <div>{Locale.CustomProvider.Confirm.DeleteKey.Title}</div>
+        <div className={styles.confirmCodeBlock}>{keyToDelete}</div>
       </div>
     );
 
@@ -1026,7 +1039,7 @@ export function ProviderModal(props: ProviderModalProps) {
   };
 
   const [testMessage, setTestMessage] = useState(
-    "Hello. Please respond with 'OK'.",
+    Locale.CustomProvider.TestMessage,
   );
   const [testingKeys, setTestingKeys] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<
@@ -1063,13 +1076,16 @@ export function ProviderModal(props: ProviderModalProps) {
     setTestingKeys((prev) => ({ ...prev, [apiKey]: true }));
     setTestResults((prev) => ({
       ...prev,
-      [apiKey]: { success: false, message: "Testing..." },
+      [apiKey]: {
+        success: false,
+        message: Locale.CustomProvider.KeyTestStatus.Testing,
+      },
     }));
 
     let result = {
       success: false,
-      message: "✗ Error",
-      fullError: "Unknown error",
+      message: Locale.CustomProvider.KeyTestStatus.ErrorPrefix,
+      fullError: Locale.CustomProvider.ModelTest.UnknownError,
       time: -1,
     };
 
@@ -1113,7 +1129,10 @@ export function ProviderModal(props: ProviderModalProps) {
         result = {
           ...result,
           success: true,
-          message: `✓ (${responseTime}ms)`,
+          message: Locale.CustomProvider.KeyTestStatus.Success.replace(
+            "{time}",
+            String(responseTime),
+          ),
           time: responseTime,
         };
         setFormData((prev) => {
@@ -1138,11 +1157,18 @@ export function ProviderModal(props: ProviderModalProps) {
         }));
 
         const fullError =
-          errorData.error?.message || `Error ${response.status}`;
+          errorData.error?.message ||
+          Locale.CustomProvider.ModelTest.ErrorCode.replace(
+            "{code}",
+            String(response.status),
+          );
         result = {
           ...result,
           success: false,
-          message: `✗ Error (${response.status})`,
+          message: Locale.CustomProvider.KeyTestStatus.ErrorWithCode.replace(
+            "{code}",
+            String(response.status),
+          ),
           fullError: fullError,
         };
         if ([401, 403, 429, 500, 502, 503].includes(response.status)) {
@@ -1156,10 +1182,10 @@ export function ProviderModal(props: ProviderModalProps) {
               disableList.push(apiKey);
               // 只有当密钥实际被禁用时才显示提示
               showToast(
-                `密钥已自动禁用 (${response.status}): ${apiKey.substring(
-                  0,
-                  10,
-                )}...`,
+                Locale.CustomProvider.Toast.KeyAutoDisabledStatus.replace(
+                  "{status}",
+                  String(response.status),
+                ).replace("{key}", apiKey.substring(0, 10)),
               );
             }
 
@@ -1172,11 +1198,11 @@ export function ProviderModal(props: ProviderModalProps) {
         }
       }
     } catch (error) {
-      let errorMsg = "Request failed";
+      let errorMsg = Locale.CustomProvider.KeyTestStatus.RequestFailed;
 
       if (error instanceof Error) {
         if (error.name === "AbortError") {
-          errorMsg = "Request timeout";
+          errorMsg = Locale.CustomProvider.KeyTestStatus.RequestTimeout;
         } else {
           errorMsg = error.message;
         }
@@ -1185,7 +1211,7 @@ export function ProviderModal(props: ProviderModalProps) {
       result = {
         ...result,
         success: false,
-        message: "✗ Error",
+        message: Locale.CustomProvider.KeyTestStatus.ErrorPrefix,
         fullError: errorMsg,
       };
       setFormData((prev) => {
@@ -1196,7 +1222,12 @@ export function ProviderModal(props: ProviderModalProps) {
 
         if (!disableList.includes(apiKey)) {
           disableList.push(apiKey);
-          showToast(`密钥已自动禁用 (网络错误): ${apiKey.substring(0, 10)}...`);
+          showToast(
+            Locale.CustomProvider.Toast.KeyAutoDisabledNetwork.replace(
+              "{key}",
+              apiKey.substring(0, 10),
+            ),
+          );
         }
 
         return {
@@ -1215,9 +1246,7 @@ export function ProviderModal(props: ProviderModalProps) {
   // Function to test all keys
   const testAllKeys = async () => {
     if (!formData.testModel?.trim()) {
-      showToast(
-        "Test model cannot be empty. Please specify a model to test with.",
-      );
+      showToast(Locale.CustomProvider.Toast.TestModelEmpty);
       return;
     }
     let testedCount = 0;
@@ -1225,115 +1254,71 @@ export function ProviderModal(props: ProviderModalProps) {
     for (let i = 0; i < totalKeys; i += API_CONCURRENCY_LIMIT) {
       const batch = keyList.slice(i, i + API_CONCURRENCY_LIMIT);
       showToast(
-        `Testing keys ${i + 1}-${Math.min(
-          i + API_CONCURRENCY_LIMIT,
-          totalKeys,
-        )} of ${totalKeys}...`,
+        Locale.CustomProvider.Toast.TestingProgress.replace(
+          "{start}",
+          String(i + 1),
+        )
+          .replace(
+            "{end}",
+            String(Math.min(i + API_CONCURRENCY_LIMIT, totalKeys)),
+          )
+          .replace("{total}", String(totalKeys)),
       );
       await Promise.all(batch.map((key) => testKeyConnectivity(key)));
       testedCount += batch.length;
     }
-    showToast(`All ${totalKeys} keys tested.`);
+    showToast(
+      Locale.CustomProvider.Toast.TestingDone.replace(
+        "{total}",
+        String(totalKeys),
+      ),
+    );
   };
 
   const removeInvalidKeys = async () => {
     // Add confirmation dialog
     const confirmContent = (
-      <div style={{ lineHeight: "1.4" }}>
-        <div style={{ fontWeight: "500" }}>
-          此操作将会移除所有测试连接失败的密钥。
+      <div className={styles.confirmDialogContent}>
+        <div className={styles.confirmTitleEmphasis}>
+          {Locale.CustomProvider.Confirm.RemoveInvalid.Title}
         </div>
 
-        <div
-          style={{
-            margin: "8px 0",
-            padding: "8px 10px",
-            backgroundColor: "#fff7ed",
-            borderLeft: "3px solid #f97316",
-            borderRadius: "4px",
-          }}
-        >
-          <div
-            style={{
-              fontWeight: "600",
-              color: "#c2410c",
-              marginBottom: "4px",
-            }}
-          >
-            将移除以下类型的密钥:
+        <div className={styles.confirmAlertBox}>
+          <div className={styles.confirmAlertTitle}>
+            {Locale.CustomProvider.Confirm.RemoveInvalid.RemoveTitle}
           </div>
-          <ul
-            style={{
-              paddingLeft: "20px",
-              margin: "4px 0 0 0",
-              color: "#9a3412",
-            }}
-          >
-            <li>API连接超时的密钥</li>
-            <li>验证失败的密钥</li>
-            <li>模型不可用的密钥</li>
+          <ul className={styles.confirmAlertList}>
+            <li>{Locale.CustomProvider.Confirm.RemoveInvalid.ItemTimeout}</li>
+            <li>
+              {Locale.CustomProvider.Confirm.RemoveInvalid.ItemAuthFailed}
+            </li>
+            <li>
+              {Locale.CustomProvider.Confirm.RemoveInvalid.ItemModelUnavailable}
+            </li>
           </ul>
         </div>
-        <div
-          style={{
-            margin: "8px 0",
-            padding: "8px 10px",
-            backgroundColor: "#f0f9ff",
-            borderLeft: "3px solid #0ea5e9",
-            borderRadius: "4px",
-          }}
-        >
-          <div
-            style={{
-              fontWeight: "600",
-              color: "#0369a1",
-              marginBottom: "4px",
-            }}
-          >
-            测试信息:
+        <div className={styles.confirmInfoBox}>
+          <div className={styles.confirmInfoTitle}>
+            {Locale.CustomProvider.Confirm.RemoveInvalid.TestInfo}
           </div>
-          <ul
-            style={{
-              paddingLeft: "20px",
-              margin: "4px 0 0 0",
-              color: "#0c4a6e",
-            }}
-          >
+          <ul className={styles.confirmInfoList}>
             <li>
-              测试模型:{" "}
-              <code
-                style={{
-                  background: "#e0f2fe",
-                  padding: "2px 4px",
-                  borderRadius: "3px",
-                }}
-              >
-                {formData.testModel || "未指定"}
+              {Locale.CustomProvider.Confirm.RemoveInvalid.TestModel}{" "}
+              <code className={styles.confirmCodeInline}>
+                {formData.testModel ||
+                  Locale.CustomProvider.Confirm.RemoveInvalid.Unspecified}
               </code>
             </li>
             <li>
-              接口地址:{" "}
-              <code
-                style={{
-                  background: "#e0f2fe",
-                  padding: "2px 4px",
-                  borderRadius: "3px",
-                  wordBreak: "break-all",
-                }}
-              >
+              {Locale.CustomProvider.Confirm.RemoveInvalid.ApiUrl}{" "}
+              <code className={styles.confirmCodeInlineBreak}>
                 {formData.baseUrl || providerTypeDefaultUrls[formData.type]}
               </code>
             </li>
           </ul>
         </div>
-        <div
-          style={{
-            marginTop: "8px",
-            fontWeight: "600",
-            color: "#dc2626",
-          }}
-        >
-          此操作执行后无法撤回，是否继续？
+        <div className={styles.confirmDangerText}>
+          {Locale.CustomProvider.Confirm.RemoveInvalid.Danger}
         </div>
       </div>
     );
@@ -1344,7 +1329,7 @@ export function ProviderModal(props: ProviderModalProps) {
     }
 
     // Show progress indicator
-    showToast("正在检查密钥...");
+    showToast(Locale.CustomProvider.Toast.CheckingKeys);
 
     // Check if we have test results for all keys
     const untestedKeys = keyList.filter((key) => !testResults[key]);
@@ -1361,7 +1346,12 @@ export function ProviderModal(props: ProviderModalProps) {
 
     // If there are untested keys, test them first
     if (untestedKeys.length > 0) {
-      showToast(`测试 ${untestedKeys.length} 个未测试的密钥...`);
+      showToast(
+        Locale.CustomProvider.Toast.TestingUntested.replace(
+          "{count}",
+          String(untestedKeys.length),
+        ),
+      );
 
       const processBatch = async (keys: string[], batchSize: number) => {
         for (let i = 0; i < keys.length; i += batchSize) {
@@ -1384,7 +1374,12 @@ export function ProviderModal(props: ProviderModalProps) {
           // Show progress
           if (keys.length > batchSize) {
             const progress = Math.min(i + batchSize, keys.length);
-            showToast(`已测试 ${progress}/${keys.length} 个密钥...`);
+            showToast(
+              Locale.CustomProvider.Toast.TestedProgress.replace(
+                "{progress}",
+                String(progress),
+              ).replace("{total}", String(keys.length)),
+            );
           }
         }
       };
@@ -1418,7 +1413,12 @@ export function ProviderModal(props: ProviderModalProps) {
     // Show results
     const removedCount = invalidKeys.length;
     if (removedCount > 0) {
-      showToast(`已移除 ${removedCount} 个失败的密钥`);
+      showToast(
+        Locale.CustomProvider.Toast.InvalidRemoved.replace(
+          "{count}",
+          String(removedCount),
+        ),
+      );
 
       // Log invalid keys for debugging
       console.log("移除的无效密钥:", invalidKeys);
@@ -1430,7 +1430,7 @@ export function ProviderModal(props: ProviderModalProps) {
         })),
       );
     } else {
-      showToast("没有发现失败的密钥");
+      showToast(Locale.CustomProvider.Toast.NoInvalidKeys);
     }
   };
 
@@ -1465,74 +1465,39 @@ export function ProviderModal(props: ProviderModalProps) {
   const clearDisabledKeys = async () => {
     // 检查是否有禁用的密钥
     if (!formData.disableKeyList || formData.disableKeyList.length === 0) {
-      showToast("没有禁用的密钥需要清除");
+      showToast(Locale.CustomProvider.Toast.NoDisabledKeys);
       return;
     }
 
     // 构建确认对话框内容
     const confirmContent = (
-      <div style={{ lineHeight: "1.4" }}>
-        <div style={{ marginBottom: "8px" }}>确定要清除所有禁用的密钥吗？</div>
+      <div className={styles.confirmDialogContent}>
+        <div className={styles.confirmTitleSpaced}>
+          {Locale.CustomProvider.Confirm.ClearDisabled.Title}
+        </div>
 
-        <div
-          style={{
-            padding: "8px 10px",
-            borderLeft: "3px solid #f87171",
-            backgroundColor: "#fef2f2",
-            margin: "8px 0",
-          }}
-        >
-          <div
-            style={{
-              fontWeight: "600",
-              color: "#b91c1c",
-              marginBottom: "4px",
-            }}
-          >
-            将移除以下密钥:
+        <div className={styles.confirmDangerBox}>
+          <div className={styles.confirmDangerTitle}>
+            {Locale.CustomProvider.Confirm.ClearDisabled.RemoveTitle}
           </div>
-          <div
-            style={{
-              maxHeight: "150px",
-              overflowY: "auto",
-              paddingRight: "5px",
-            }}
-          >
+          <div className={styles.confirmKeyScroll}>
             {formData.disableKeyList.map((key, index) => (
-              <div
-                key={index}
-                style={{
-                  marginBottom: "4px",
-                  fontFamily: "monospace",
-                  fontSize: "13px",
-                  wordBreak: "break-all",
-                }}
-              >
+              <div key={index} className={styles.confirmKeyCode}>
                 {index + 1}. {key.substring(0, 12)}...
                 {key.substring(key.length - 5)}
               </div>
             ))}
           </div>
-          <div
-            style={{
-              marginTop: "8px",
-              color: "#b91c1c",
-              fontWeight: "500",
-              fontSize: "14px",
-            }}
-          >
-            共 {formData.disableKeyList.length} 个密钥
+          <div className={styles.confirmKeyCount}>
+            {Locale.CustomProvider.Confirm.ClearDisabled.Count.replace(
+              "{count}",
+              String(formData.disableKeyList.length),
+            )}
           </div>
         </div>
 
-        <div
-          style={{
-            fontSize: "14px",
-            color: "#6b7280",
-            marginTop: "8px",
-          }}
-        >
-          此操作不可撤销，请确认是否继续？
+        <div className={styles.confirmMutedText}>
+          {Locale.CustomProvider.Confirm.ClearDisabled.Danger}
         </div>
       </div>
     );
@@ -1556,7 +1521,12 @@ export function ProviderModal(props: ProviderModalProps) {
       setKeyList(newKeyList);
 
       // 显示成功消息
-      showToast(`已清除 ${formData.disableKeyList.length} 个禁用的密钥`);
+      showToast(
+        Locale.CustomProvider.Toast.DisabledCleared.replace(
+          "{count}",
+          String(formData.disableKeyList.length),
+        ),
+      );
     }
   };
 
@@ -1569,26 +1539,25 @@ export function ProviderModal(props: ProviderModalProps) {
     const confirmContent = (
       <div>
         <div>
-          {`确定要删除所有匹配"${newKey}"的 ${filteredKeys.length} 个密钥吗？`}
+          {Locale.CustomProvider.Confirm.DeleteFiltered.Title.replace(
+            "{term}",
+            newKey,
+          ).replace("{count}", String(filteredKeys.length))}
         </div>
-        <div
-          style={{
-            marginTop: "10px",
-            padding: "8px 12px",
-            backgroundColor: "#fff1f0",
-            borderRadius: "4px",
-            borderLeft: "3px solid #ff4d4f",
-          }}
-        >
-          <div style={{ fontWeight: "500", color: "#cf1322" }}>
-            此操作不可撤销
+        <div className={styles.confirmDangerInline}>
+          <div className={styles.confirmDangerInlineTitle}>
+            {Locale.CustomProvider.Confirm.DeleteFiltered.Danger}
           </div>
-          <div style={{ marginTop: "4px", color: "#ff4d4f" }}>
+          <div className={styles.confirmDangerInlineDetail}>
             {filteredKeys.length > 3
-              ? `将删除 ${filteredKeys.length} 个密钥，包括: ${filteredKeys
-                  .slice(0, 3)
-                  .join(", ")}... 等`
-              : `将删除: ${filteredKeys.join(", ")}`}
+              ? Locale.CustomProvider.Confirm.DeleteFiltered.Including.replace(
+                  "{count}",
+                  String(filteredKeys.length),
+                ).replace("{keys}", filteredKeys.slice(0, 3).join(", "))
+              : Locale.CustomProvider.Confirm.DeleteFiltered.AllKeys.replace(
+                  "{keys}",
+                  filteredKeys.join(", "),
+                )}
           </div>
         </div>
       </div>
@@ -1616,7 +1585,12 @@ export function ProviderModal(props: ProviderModalProps) {
       setNewKey("");
 
       // 显示成功消息
-      showToast(`已删除 ${filteredKeys.length} 个密钥`);
+      showToast(
+        Locale.CustomProvider.Toast.FilteredRemoved.replace(
+          "{count}",
+          String(filteredKeys.length),
+        ),
+      );
     }
   };
 
@@ -1626,7 +1600,9 @@ export function ProviderModal(props: ProviderModalProps) {
         <div className={styles.keyListContainer}>
           {/* Add test prompt input and Test All button */}
           <div className={styles.testConfigContainer}>
-            <label className={styles.testModelLabel}>Test Model:</label>
+            <label className={styles.testModelLabel}>
+              {Locale.CustomProvider.TestModelLabel}
+            </label>
             <input
               type="text"
               placeholder={providerTypeDefaultTestModel[formData.type]}
@@ -1637,7 +1613,7 @@ export function ProviderModal(props: ProviderModalProps) {
               className={styles.testModelInput}
             />
             <IconButton
-              text="Test All Keys"
+              text={Locale.CustomProvider.TestAllKeys}
               onClick={testAllKeys}
               bordered
               disabled={
@@ -1690,7 +1666,7 @@ export function ProviderModal(props: ProviderModalProps) {
                 text={Locale.CustomProvider.ClearSelectKeys}
                 onClick={removeFilteredKeys}
                 bordered
-                title="删除所有匹配的密钥"
+                title={Locale.CustomProvider.ClearSelectKeys}
                 disabled={!newKey.trim() || filteredKeys.length === 0}
                 className={styles.deleteMatchedButton}
               />
@@ -1698,7 +1674,7 @@ export function ProviderModal(props: ProviderModalProps) {
                 text={Locale.CustomProvider.RefreshBalance}
                 onClick={async () => {
                   if (formData.baseUrl.endsWith("#")) {
-                    showToast("当前渠道不支持余额查询");
+                    showToast(Locale.CustomProvider.Toast.BalanceNotSupported);
                     return;
                   }
                   setKeyBalances({});
@@ -1724,10 +1700,20 @@ export function ProviderModal(props: ProviderModalProps) {
                       i + API_CONCURRENCY_LIMIT,
                     );
                     showToast(
-                      `Refreshing balances for keys ${i + 1}-${Math.min(
-                        i + API_CONCURRENCY_LIMIT,
-                        totalKeysToRefresh,
-                      )} of ${totalKeysToRefresh}...`,
+                      Locale.CustomProvider.Toast.RefreshProgress.replace(
+                        "{start}",
+                        String(i + 1),
+                      )
+                        .replace(
+                          "{end}",
+                          String(
+                            Math.min(
+                              i + API_CONCURRENCY_LIMIT,
+                              totalKeysToRefresh,
+                            ),
+                          ),
+                        )
+                        .replace("{total}", String(totalKeysToRefresh)),
                     );
 
                     const batchPromises = batchKeys.map(async (key) => {
@@ -1797,13 +1783,14 @@ export function ProviderModal(props: ProviderModalProps) {
                       },
                     }));
                     showToast(
-                      `所有余额刷新完成，当前渠道总额度：${currency} ${totalBalance.toFixed(
-                        2,
-                      )}`,
+                      Locale.CustomProvider.Toast.RefreshDone.replace(
+                        "{currency}",
+                        currency,
+                      ).replace("{amount}", totalBalance.toFixed(2)),
                     );
                   } else {
                     setFormData((prev) => ({ ...prev, balance: undefined }));
-                    showToast("所有余额刷新完成，未查询到有效额度信息。");
+                    showToast(Locale.CustomProvider.Toast.RefreshNoBalance);
                   }
                 }}
                 bordered
@@ -1820,8 +1807,11 @@ export function ProviderModal(props: ProviderModalProps) {
             {filteredKeys.length === 0 ? (
               <div className={styles.emptyKeys}>
                 {keyList.length === 0
-                  ? "No API keys added. Add your first key above."
-                  : `No keys matching "${newKey}"`}
+                  ? Locale.CustomProvider.EmptyKeys.None
+                  : Locale.CustomProvider.EmptyKeys.NoMatching.replace(
+                      "{term}",
+                      newKey,
+                    )}
               </div>
             ) : (
               <div className={styles.keyList}>
@@ -1928,7 +1918,7 @@ export function ProviderModal(props: ProviderModalProps) {
       // 准备测试请求
       const testMessage = {
         role: "user",
-        content: "Hello. Please respond with 'OK'.",
+        content: Locale.CustomProvider.TestMessage,
       };
       let completionPath = formData.paths?.ChatPath || "/v1/chat/completions";
 
@@ -1975,17 +1965,29 @@ export function ProviderModal(props: ProviderModalProps) {
         }));
       } else {
         // API返回错误
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: { message: "未知错误", code: "unknown" } }));
+        const errorData = await response.json().catch(() => ({
+          error: {
+            message: Locale.CustomProvider.ModelTest.UnknownError,
+            code: "unknown",
+          },
+        }));
         const errorCode =
           errorData.error?.code ||
           errorData.error?.type ||
           `${response.status}`;
         const errorMessage =
-          errorData.error?.message || `错误 ${response.status}`;
+          errorData.error?.message ||
+          Locale.CustomProvider.ModelTest.ErrorCode.replace(
+            "{code}",
+            String(response.status),
+          );
 
-        showToast(`模型 ${modelName} 测试失败: ${errorMessage}`);
+        showToast(
+          Locale.CustomProvider.Toast.ModelTestFailed.replace(
+            "{name}",
+            modelName,
+          ).replace("{msg}", errorMessage),
+        );
 
         setModelTestStatus((prev) => ({
           ...prev,
@@ -1998,22 +2000,27 @@ export function ProviderModal(props: ProviderModalProps) {
     } catch (error) {
       // 请求异常
       console.error("测试模型失败:", error);
-      let errorMsg = "请求失败";
+      let errorMsg = Locale.CustomProvider.ModelTest.RequestFailed;
       let errorCode = "Error";
 
       if (error instanceof Error) {
         if (error.name === "AbortError") {
-          errorMsg = "请求超时";
+          errorMsg = Locale.CustomProvider.ModelTest.RequestTimeout;
           errorCode = "TIMEOUT";
         } else if (error.message.includes("timeout")) {
-          errorMsg = "请求超时";
+          errorMsg = Locale.CustomProvider.ModelTest.RequestTimeout;
           errorCode = "TIMEOUT";
         } else {
           errorMsg = error.message;
           errorCode = error.name || "ERROR";
         }
       }
-      showToast(`模型 ${modelName} 测试失败: ${errorMsg}`);
+      showToast(
+        Locale.CustomProvider.Toast.ModelTestFailed.replace(
+          "{name}",
+          modelName,
+        ).replace("{msg}", errorMsg),
+      );
 
       setModelTestStatus((prev) => ({
         ...prev,
@@ -2062,7 +2069,12 @@ export function ProviderModal(props: ProviderModalProps) {
           enableList.push(key);
         }
 
-        showToast(`密钥已启用: ${key.substring(0, 10)}...`);
+        showToast(
+          Locale.CustomProvider.Toast.KeyEnabled.replace(
+            "{key}",
+            key.substring(0, 10),
+          ),
+        );
 
         return {
           ...prev,
@@ -2076,7 +2088,12 @@ export function ProviderModal(props: ProviderModalProps) {
           disableList.push(key);
         }
 
-        showToast(`密钥已禁用: ${key.substring(0, 10)}...`);
+        showToast(
+          Locale.CustomProvider.Toast.KeyDisabled.replace(
+            "{key}",
+            key.substring(0, 10),
+          ),
+        );
 
         return {
           ...prev,
@@ -2340,8 +2357,8 @@ export function ProviderModal(props: ProviderModalProps) {
 
               {/* 服务器代理选项 - 独立于高级设置 */}
               <ListItem
-                title="服务器代理"
-                subTitle="通过服务器转发请求，解决跨域问题"
+                title={Locale.CustomProvider.ServerProxy.title}
+                subTitle={Locale.CustomProvider.ServerProxy.subtitle}
               >
                 <input
                   type="checkbox"
@@ -2461,18 +2478,18 @@ export function ProviderModal(props: ProviderModalProps) {
                       modelViewMode === "list" ? styles.active : ""
                     }`}
                     onClick={() => setModelViewMode("list")}
-                    title="列表视图"
+                    title={Locale.CustomProvider.ViewToggle.ListTitle}
                   >
-                    列表
+                    {Locale.CustomProvider.ViewToggle.List}
                   </button>
                   <button
                     className={`${styles.viewToggleBtn} ${
                       modelViewMode === "grid" ? styles.active : ""
                     }`}
                     onClick={() => setModelViewMode("grid")}
-                    title="卡片视图"
+                    title={Locale.CustomProvider.ViewToggle.CardTitle}
                   >
-                    卡片
+                    {Locale.CustomProvider.ViewToggle.Card}
                   </button>
                 </div>
               </div>
@@ -2488,30 +2505,14 @@ export function ProviderModal(props: ProviderModalProps) {
                 </div>
               ) : isJsonViewMode ? (
                 // JSON编辑视图 - 移除内部应用按钮
-                <div style={{ padding: "10px" }}>
-                  <div
-                    style={{
-                      marginBottom: "10px",
-                      fontSize: "14px",
-                      color: "#374151",
-                    }}
-                  >
+                <div className={styles.jsonEditContainer}>
+                  <div className={styles.jsonEditLabel}>
                     {Locale.CustomProvider.EditModel.EditJson}
                   </div>
                   <textarea
                     value={displayNameMapText}
                     onChange={(e) => setDisplayNameMapText(e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: "250px",
-                      padding: "12px",
-                      borderRadius: "6px",
-                      border: "1px solid #e5e7eb",
-                      fontFamily: "monospace",
-                      fontSize: "14px",
-                      lineHeight: "1.5",
-                      resize: "vertical",
-                    }}
+                    className={styles.jsonEditTextarea}
                   />
                 </div>
               ) : filteredModels.length > 0 ? (
@@ -2547,7 +2548,7 @@ export function ProviderModal(props: ProviderModalProps) {
                             <span
                               className={`${styles.modelListTestResult} ${styles.testing}`}
                             >
-                              测试中...
+                              {Locale.CustomProvider.ModelTest.Testing}
                             </span>
                           ) : modelTestStatus[model.name]?.status ===
                             "success" ? (
@@ -2562,14 +2563,14 @@ export function ProviderModal(props: ProviderModalProps) {
                               className={`${styles.modelListTestResult} ${styles.error}`}
                               title={modelTestStatus[model.name]?.result}
                             >
-                              失败
+                              {Locale.CustomProvider.ModelTest.Failed}
                             </span>
                           ) : null}
                           {/* 测试按钮 */}
                           <div
                             className={styles.modelTestIcon}
                             onClick={(e) => testModelAvailability(model, e)}
-                            title="测试模型可用性"
+                            title={Locale.CustomProvider.ModelTest.Title}
                           >
                             {modelTestStatus[model.name]?.status ===
                             "testing" ? (
@@ -2593,8 +2594,8 @@ export function ProviderModal(props: ProviderModalProps) {
                             }}
                             title={
                               model.enableVision
-                                ? "关闭视觉支持"
-                                : "开启视觉支持"
+                                ? Locale.CustomProvider.Vision.Disable
+                                : Locale.CustomProvider.Vision.Enable
                             }
                           >
                             {model.enableVision ? (
@@ -2646,12 +2647,17 @@ export function ProviderModal(props: ProviderModalProps) {
                             onClick={(e) => testModelAvailability(model, e)}
                             title={
                               modelTestStatus[model.name]?.status === "success"
-                                ? `响应时间: ${modelTestStatus[model.name]
-                                    ?.result}`
+                                ? Locale.CustomProvider.ModelTest.ResponseTime.replace(
+                                    "{time}",
+                                    modelTestStatus[model.name]?.result || "",
+                                  )
                                 : modelTestStatus[model.name]?.status ===
                                   "error"
-                                ? `错误: ${modelTestStatus[model.name]?.result}`
-                                : "测试模型可用性"
+                                ? Locale.CustomProvider.ModelTest.Error.replace(
+                                    "{msg}",
+                                    modelTestStatus[model.name]?.result || "",
+                                  )
+                                : Locale.CustomProvider.ModelTest.Title
                             }
                           >
                             {modelTestStatus[model.name]?.status ===
@@ -2685,8 +2691,8 @@ export function ProviderModal(props: ProviderModalProps) {
                             }}
                             title={
                               model.enableVision
-                                ? "关闭视觉支持"
-                                : "开启视觉支持"
+                                ? Locale.CustomProvider.Vision.Disable
+                                : Locale.CustomProvider.Vision.Enable
                             }
                           >
                             {model.enableVision ? (
@@ -2717,7 +2723,7 @@ export function ProviderModal(props: ProviderModalProps) {
         )}
       </Modal>
       {editingModel && (
-        <div className="modal-mask" style={{ zIndex: 2000 }}>
+        <div className={`modal-mask ${styles.editModelMask}`}>
           <div className={styles.editNameModal}>
             <div className={styles.editNameHeader}>
               <h3>{Locale.CustomProvider.EditModel.EditModelFeature}</h3>
@@ -2751,7 +2757,7 @@ export function ProviderModal(props: ProviderModalProps) {
                   type="text"
                   value={editedDescription}
                   onChange={(e) => setEditedDescription(e.target.value)}
-                  placeholder="输入模型描述（可选）"
+                  placeholder={Locale.CustomProvider.ModelDescPlaceholder}
                   className={styles.displayNameInput}
                 />
               </div>
@@ -2768,7 +2774,9 @@ export function ProviderModal(props: ProviderModalProps) {
                       <div className={styles.toggleSlider}></div>
                     </div>
                     <span className={styles.toggleLabel}>
-                      {editedEnableVision ? "已启用" : "未启用"}
+                      {editedEnableVision
+                        ? Locale.CustomProvider.Vision.Enabled
+                        : Locale.CustomProvider.Vision.Disabled}
                     </span>
                   </div>
                 </div>

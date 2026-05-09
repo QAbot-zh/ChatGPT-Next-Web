@@ -22,10 +22,16 @@
   background-color: #ECFDF5 !important;
   color: #047857 !important;
   border-color: #A7F3D0 !important;
-  
+
   &:hover {
     background-color: #D1FAE5 !important;
   }
+}
+
+// 通用：包含 LoadingIcon 的固定尺寸容器
+.loadingIconBox {
+  width: 20px;
+  height: 20px;
 }
 // ===== 2. 头部和导航 =====
 // 头部样式
@@ -147,21 +153,21 @@
   .searchInput {
     width: 100%;
     padding: 10px 16px 10px 40px;
-    border: 1px solid #e5e7eb;
+    border: var(--border-in-light);
     border-radius: 8px;
     font-size: var(--text-sm);
-    
+
     &::placeholder {
       color: #6b7280;
     }
-    
+
     &:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+      box-shadow: 0 0 0 2px var(--second);
     }
   }
-  
+
   .searchIcon, .clearButton {
     position: static;
     transform: none;
@@ -169,18 +175,18 @@
   .searchInput {
     width: 100%;
     padding: 10px 16px;
-    border: 1px solid #e5e7eb;
+    border: var(--border-in-light);
     border-radius: 8px;
     font-size: var(--text-sm);
-    
+
     &::placeholder {
       color: #6b7280;
     }
-    
+
     &:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--second);
     }
   }
 }
@@ -255,20 +261,20 @@
     flex-grow: 1;
     margin-right: 10px;
     padding: 10px 16px;
-    border: 1px solid #e5e7eb;
+    border: var(--border-in-light);
     border-radius: 8px;
     font-size: var(--text-sm);
-    
+
     &:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--second);
     }
   }
   
   .actions {
     display: flex;
-    button:not(:last-child) {
+    > button:not(:last-child) {
       margin-right: 10px;
     }
   }
@@ -310,18 +316,18 @@
 
 .modelSearchInput {
   flex: 1;
-  
+
   input {
     width: 100%;
     padding: 10px 16px;
-    border: 1px solid #e5e7eb;
+    border: var(--border-in-light);
     border-radius: 8px;
     font-size: var(--text-sm);
-    
+
     &:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--second);
     }
   }
 }
@@ -524,15 +530,15 @@
 .descriptionInput {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #e5e7eb;
+  border: var(--border-in-light);
   border-radius: 6px;
   font-size: var(--text-sm);
   min-width: 400px;
-  
+
   &:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--second);
   }
 }
 // 视觉支持行样式 - 使标签和开关在同一行
@@ -672,7 +678,7 @@
       }
       
       .disabled & {
-        background-color: var(--secondary);
+        background-color: var(--second);
         color: var(--white);
       }
     }
@@ -729,28 +735,28 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: var(--border-in-light);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
   background-color: var(--white);
 
   &:hover {
-    border-color: #2563eb;
-    background-color: rgba(37, 99, 235, 0.02);
+    border-color: var(--primary);
+    background-color: var(--second);
   }
 
   &.selected {
-    border-color: #2563eb;
-    background-color: rgba(37, 99, 235, 0.08);
+    border-color: var(--primary);
+    background-color: var(--second);
 
     .modelCheckbox {
-      background-color: #2563eb;
-      border-color: #2563eb;
+      background-color: var(--primary);
+      border-color: var(--primary);
 
       &::after {
         content: '✓';
-        color: white;
+        color: var(--white);
         font-size: 12px;
         font-weight: bold;
       }
@@ -827,15 +833,15 @@
   }
 
   &.testing {
-    color: #2563eb;
-    background-color: #dbeafe;
+    color: var(--primary);
+    background-color: var(--second);
   }
 }
 
 // 视图切换按钮组
 .viewToggleGroup {
   display: flex;
-  border: 1px solid #e5e7eb;
+  border: var(--border-in-light);
   border-radius: 6px;
   overflow: hidden;
   margin-left: 8px;
@@ -850,17 +856,14 @@
   cursor: pointer;
   transition: all 0.15s ease;
 
-  &:not(:last-child) {
-    border-right: 1px solid #e5e7eb;
-  }
-
   &:hover {
-    background-color: #f3f4f6;
+    background-color: var(--second);
+    color: var(--primary);
   }
 
   &.active {
-    background-color: #2563eb;
-    color: white;
+    background-color: var(--primary);
+    color: var(--white);
   }
 }
 
@@ -890,7 +893,7 @@
 
 .modelItem {
   padding: 12px 16px;
-  border: 1px solid #e5e7eb;
+  border: var(--border-in-light);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
@@ -898,16 +901,16 @@
   flex-direction: column;
   height: 100px;
   box-sizing: border-box;
-  
+
   &:hover {
-    border-color: #2563eb;
+    border-color: var(--primary);
     transform: translateY(-2px);
-    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 2px 6px var(--second);
   }
-  
+
   &.selected {
-    border-color: #2563eb;
-    background-color: rgba(37, 99, 235, 0.3);
+    border-color: var(--primary);
+    background-color: var(--second);
   }
 }
 
@@ -959,7 +962,7 @@
   .spinner {
     border: 3px solid rgba(0, 0, 0, 0.1);
     border-radius: 50%;
-    border-top: 3px solid #2563eb;
+    border-top: 3px solid var(--primary);
     width: 24px;
     height: 24px;
     animation: spin 1s linear infinite;
@@ -1090,16 +1093,16 @@
   width: 100%;
   min-height: 200px;
   padding: 10px 16px 40px 16px;
-  border: 1px solid #e5e7eb;
+  border: var(--border-in-light);
   border-radius: 8px;
   font-size: var(--text-sm);
   resize: vertical;
   box-sizing: border-box;
-  
+
   &:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--second);
   }
 }
 .parsingButtonContainer {
@@ -1139,10 +1142,10 @@
   margin-left: 6px;
   opacity: 0.6;
   transition: opacity 0.2s;
-  
+
   &:hover {
     opacity: 1;
-    color: #2563eb;
+    color: var(--primary);
   }
 }
 
@@ -1165,26 +1168,26 @@
   overflow: hidden; // 超出部分隐藏
   text-overflow: ellipsis; // 超出显示省略号
   white-space: nowrap; // 防止文本换行
-  
+
   &:hover {
     background-color: #e5e7eb;
     border-color: #9ca3af;
   }
-  
+
   &.testing {
-    background-color: #dbeafe;
-    color: #2563eb;
-    border: 1px solid #93c5fd;
-    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.1);
+    background-color: var(--second);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    box-shadow: 0 0 0 1px var(--second);
   }
-  
+
   &.success {
     background-color: #d1fae5;
     color: #059669;
     border: 1px solid #6ee7b7;
     box-shadow: 0 0 0 1px rgba(5, 150, 105, 0.1);
   }
-  
+
   &.error {
     background-color: #fee2e2;
     color: #dc2626;
@@ -1239,9 +1242,9 @@
   .closeButton {
     cursor: pointer;
     color: #6b7280;
-    
+
     &:hover {
-      color: #111827;
+      color: var(--black);
     }
   }
 }
@@ -1250,7 +1253,7 @@
 }
 .editNameRow {
   margin-bottom: 16px;
-  
+
   label {
     display: block;
     font-size: var(--text-sm);
@@ -1258,26 +1261,26 @@
     margin-bottom: 6px;
     color: var(--black);
   }
-  
+
   .modelIdText {
     font-size: var(--text-sm);
     color: var(--black);
     padding: 8px 0;
     word-break: break-all;
   }
-  
+
   .displayNameInput {
     width: 100%;
     padding: 8px 12px;
-    border: 1px solid #e5e7eb;
+    border: var(--border-in-light);
     border-radius: 6px;
     font-size: var(--text-sm);
     min-width: 400px;
-    
+
     &:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--second);
     }
   }
 
@@ -1336,10 +1339,10 @@
   }
   
   .saveButton {
-    background-color: var(--primary, #2563eb);
+    background-color: var(--primary);
     color: var(--white);
     border: none;
-    
+
     &:hover {
       opacity: 0.9;
     }
@@ -1364,14 +1367,14 @@
     flex-grow: 1;
     margin-right: 10px;
     padding: 10px 16px;
-    border: 1px solid #e5e7eb;
+    border: var(--border-in-light);
     border-radius: 8px;
     font-size: var(--text-sm);
 
     &:focus {
       outline: none;
-      border-color: #2563eb;
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--second);
     }
   }
 
@@ -1716,15 +1719,15 @@
   max-width: 100% !important;
   min-width: 200px !important;
   padding: 8px 12px;
-  border: 1px solid #e5e7eb;
+  border: var(--border-in-light);
   border-radius: 6px;
   font-size: var(--text-sm);
   box-sizing: border-box;
 
   &:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--second);
   }
 }
 
@@ -1743,6 +1746,218 @@
       min-width: 0 !important;
     }
   }
+}
+
+// ===== 14. Confirm Dialog Styles =====
+.confirmDialogContent {
+  line-height: 1.4;
+}
+
+.confirmWarning {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background-color: var(--second);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+}
+
+.confirmWarningTitle {
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.confirmWarningList {
+  padding-left: 20px;
+  margin: 4px 0 0 0;
+  color: var(--black);
+}
+
+.confirmDangerText {
+  margin-top: 8px;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.confirmMutedText {
+  font-size: 14px;
+  color: var(--black);
+  opacity: 0.6;
+  margin-top: 8px;
+}
+
+.confirmCodeBlock {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background-color: var(--gray);
+  border-radius: 4px;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.confirmKeyCode {
+  font-family: monospace;
+  font-size: 13px;
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+.confirmKeyScroll {
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.confirmKeyCount {
+  margin-top: 8px;
+  color: #dc2626;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.confirmCodeInline {
+  background: var(--second);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.confirmCodeInlineBreak {
+  background: var(--second);
+  padding: 2px 4px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+// 信息提示块（蓝色风格）
+.confirmInfoBox {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background-color: var(--second);
+  border-left: 3px solid var(--primary);
+  border-radius: 4px;
+}
+
+.confirmInfoTitle {
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.confirmInfoList {
+  padding-left: 20px;
+  margin: 4px 0 0 0;
+  color: var(--black);
+}
+
+// 警告提示块（橙色/红色风格）
+.confirmAlertBox {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background-color: #fff7ed;
+  border-left: 3px solid #f97316;
+  border-radius: 4px;
+}
+
+.confirmAlertTitle {
+  font-weight: 600;
+  color: #c2410c;
+  margin-bottom: 4px;
+}
+
+.confirmAlertList {
+  padding-left: 20px;
+  margin: 4px 0 0 0;
+  color: #9a3412;
+}
+
+// 危险风格块
+.confirmDangerBox {
+  padding: 8px 10px;
+  border-left: 3px solid #f87171;
+  background-color: #fef2f2;
+  margin: 8px 0;
+}
+
+.confirmDangerTitle {
+  font-weight: 600;
+  color: #b91c1c;
+  margin-bottom: 4px;
+}
+
+.confirmDangerInline {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background-color: #fff1f0;
+  border-radius: 4px;
+  border-left: 3px solid #ff4d4f;
+}
+
+.confirmDangerInlineTitle {
+  font-weight: 500;
+  color: #cf1322;
+}
+
+.confirmDangerInlineDetail {
+  margin-top: 4px;
+  color: #ff4d4f;
+}
+
+.confirmTitleEmphasis {
+  font-weight: 500;
+}
+
+.confirmTitleSpaced {
+  margin-bottom: 8px;
+}
+
+.confirmKeyCodeMono {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background-color: var(--second);
+  border-radius: 4px;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+// ===== 15. Loading Spinner =====
+.loadingSpinner {
+  width: 20px;
+  height: 20px;
+}
+
+// ===== 16. JSON Editor =====
+.jsonEditContainer {
+  padding: 10px;
+}
+
+.jsonEditLabel {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--black);
+}
+
+.jsonEditTextarea {
+  width: 100%;
+  height: 250px;
+  padding: 12px;
+  border-radius: 6px;
+  border: var(--border-in-light);
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  background: var(--white);
+  color: var(--black);
+}
+
+// ===== 17. Edit Model Modal =====
+.editModelZIndex {
+  z-index: 2000;
+}
+
+// 编辑模型遮罩层（modal-mask 之上）
+.editModelMask {
+  z-index: 2000;
 }
 
 // 小屏响应式
