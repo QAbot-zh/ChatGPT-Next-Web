@@ -1148,33 +1148,20 @@ function CustomCode(props: { children: any; className?: string }) {
 /**
  * 转义未闭合的公式，使已闭合的公式正常渲染，未闭合的显示原文
  * 流式渲染时调用，实现部分公式渲染
+ *
+ * 调用前提：代码块与行内代码已被外层 protector 替换为占位符。
+ * 此时文本里残留的 ``` 数量等于未配对的个数；占位符里不含反引号或 $。
  */
 function escapeIncompleteFormulas(text: string): string {
-  // 1. 检查是否在未闭合的代码块内，如果是则不处理
+  // 1. 检查是否在未闭合的代码块内（流式正在写代码块），如果是则不处理
   const codeBlockCount = (text.match(/```/g) || []).length;
   if (codeBlockCount % 2 !== 0) {
     return text;
   }
 
-  // 2. 使用保护器保护代码块
-  const protectedBlocks: { placeholder: string; content: string }[] = [];
-  let idx = 0;
+  let result = text;
 
-  let result = text
-    // 保护完整代码块
-    .replace(/```[\s\S]*?```/g, (match) => {
-      const placeholder = `\x00CODEBLOCK${idx++}\x00`;
-      protectedBlocks.push({ placeholder, content: match });
-      return placeholder;
-    })
-    // 保护行内代码
-    .replace(/`[^`\n]+`/g, (match) => {
-      const placeholder = `\x00INLINECODE${idx++}\x00`;
-      protectedBlocks.push({ placeholder, content: match });
-      return placeholder;
-    });
-
-  // 3. 处理 $$ 块级公式 - 转义未闭合的
+  // 2. 处理 $$ 块级公式 - 转义未闭合的
   const doubleDollarParts = result.split("$$");
   if (doubleDollarParts.length % 2 === 0) {
     // 奇数个 $$，说明最后一个未闭合
@@ -1185,11 +1172,12 @@ function escapeIncompleteFormulas(text: string): string {
     }
   }
 
-  // 4. 处理 $ 行内公式 - 转义未闭合的（排除 $$ 的情况）
-  // 先保护已处理的 $$
+  // 3. 处理 $ 行内公式 - 转义未闭合的（排除 $$ 的情况）
+  // 临时保护已闭合的 $$ 块，避免误把内部 $ 计入
+  const blockMath: string[] = [];
   result = result.replace(/\$\$[\s\S]*?\$\$/g, (match) => {
-    const placeholder = `\x00BLOCKMATH${idx++}\x00`;
-    protectedBlocks.push({ placeholder, content: match });
+    const placeholder = `\x00BM${blockMath.length}\x00`;
+    blockMath.push(match);
     return placeholder;
   });
 
@@ -1207,7 +1195,7 @@ function escapeIncompleteFormulas(text: string): string {
     }
   }
 
-  // 5. 处理 \[ - 转义未闭合的
+  // 4. 处理 \[ - 转义未闭合的
   const openBrackets = (result.match(/\\\[/g) || []).length;
   const closeBrackets = (result.match(/\\\]/g) || []).length;
   if (openBrackets > closeBrackets) {
@@ -1218,7 +1206,7 @@ function escapeIncompleteFormulas(text: string): string {
     }
   }
 
-  // 6. 处理 \( - 转义未闭合的
+  // 5. 处理 \( - 转义未闭合的
   const openParens = (result.match(/\\\(/g) || []).length;
   const closeParens = (result.match(/\\\)/g) || []).length;
   if (openParens > closeParens) {
@@ -1228,11 +1216,9 @@ function escapeIncompleteFormulas(text: string): string {
     }
   }
 
-  // 7. 恢复保护的内容
-  for (let i = protectedBlocks.length - 1; i >= 0; i--) {
-    result = result
-      .split(protectedBlocks[i].placeholder)
-      .join(protectedBlocks[i].content);
+  // 6. 恢复 $$ 临时保护
+  for (let i = blockMath.length - 1; i >= 0; i--) {
+    result = result.split(`\x00BM${i}\x00`).join(blockMath[i]);
   }
 
   return result;
@@ -1281,17 +1267,18 @@ const INLINE_CODE_PATTERN = /`[^`\n]+`/g;
 
 function escapeDollarNumber(text: string): string {
   const result: string[] = [];
-  let isInMathExpression = false;
   let isInCodeBlock = false;
   let isInInlineCode = false;
   let isInLatexBlock = false;
 
+  // 注：成对代码块/行内代码已由调用方的 protector 替换为占位符；
+  //    此处状态机用于兜底保护"流式未闭合"的代码块（protector 不会匹配）。
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const prevChar = text[i - 1] || " ";
     const nextChar = text[i + 1] || " ";
 
-    // 代码块 ```
+    // 代码块 ```（兜底未闭合代码块）
     if (text.substring(i, i + 3) === "```") {
       isInCodeBlock = !isInCodeBlock;
       result.push("```");
@@ -1299,7 +1286,7 @@ function escapeDollarNumber(text: string): string {
       continue;
     }
 
-    // 行内代码 `
+    // 行内代码 `（兜底未闭合行内代码）
     if (char === "`" && !isInCodeBlock) {
       isInInlineCode = !isInInlineCode;
       result.push("`");
@@ -1326,11 +1313,6 @@ function escapeDollarNumber(text: string): string {
       continue;
     }
 
-    // 数学表达式状态切换
-    if (char === "$" && nextChar !== "$") {
-      isInMathExpression = !isInMathExpression;
-    }
-
     // 双美元符号
     if (char === "$" && nextChar === "$") {
       result.push("$$");
@@ -1338,14 +1320,9 @@ function escapeDollarNumber(text: string): string {
       continue;
     }
 
-    // 转义 $数字
-    if (
-      char === "$" &&
-      nextChar >= "0" &&
-      nextChar <= "9" &&
-      !isInMathExpression &&
-      !isInLatexBlock
-    ) {
+    // 转义 $数字（无条件）：避免 remark-math 把 $5 这种货币表达识别为公式起点
+    // 合法的行内公式极少以 $5 这种形式开头；改写后 $5 → &#36;5
+    if (char === "$" && nextChar >= "0" && nextChar <= "9") {
       result.push("&#36;");
       continue;
     }
@@ -1367,34 +1344,38 @@ function autoFixLatexDisplayMode(text: string): string {
   const displayEnvs =
     /\\begin\{(?:equation|equation\*|align|align\*|gather|gather\*|matrix|pmatrix|bmatrix|vmatrix|Vmatrix|split)\}/;
 
-  // 这个正则表达式用于匹配被单美元符号包裹的内容（同时避免匹配双美元符号）
-  return text.replace(/\$(?!\$)([\s\S]*?)(?<!\$)\$/g, (match, content) => {
-    // 如果一个行内公式块的内容，包含了展示模式的环境...
-    if (displayEnvs.test(content)) {
-      // ...就将这个块升级为展示模式，即把 `$` 替换为 `$$`
-      return `$$${content}$$`;
-    }
-    // 否则，保持原样
-    return match;
-  });
-}
-
-function escapeBrackets(text: string) {
-  const pattern =
-    /(```[\s\S]*?```|`.*?`)|\\\[([\s\S]*?[^\\])\\\]|\\\((.*?)\\\)/g;
+  // 起始/结束都用 (?<!\$)\$(?!\$) 限定为"真正的单 $"
+  // 否则 $$..$$ 内部的内容会被误当作 $..$ 匹配并加一层 $，
+  // 造成相邻公式连写时（如 $..$ 紧接 $$..$$）解析错位。
   return text.replace(
-    pattern,
-    (match, codeBlock, squareBracket, roundBracket) => {
-      if (codeBlock) {
-        return codeBlock;
-      } else if (squareBracket) {
-        return `$$${squareBracket}$$`;
-      } else if (roundBracket) {
-        return `$${roundBracket}$`;
+    /(?<!\$)\$(?!\$)([\s\S]*?)(?<!\$)\$(?!\$)/g,
+    (match, content) => {
+      // 如果一个行内公式块的内容，包含了展示模式的环境...
+      if (displayEnvs.test(content)) {
+        // ...就将这个块升级为展示模式，即把 `$` 替换为 `$$`
+        // （注：remark-math 5.x 把所有 $$..$$ 也识别为 inlineMath，
+        //  真正切到 displayMode 由 rehype 阶段的 rehypeFixDisplayMath 完成）
+        return `$$${content}$$`;
       }
+      // 否则，保持原样
       return match;
     },
   );
+}
+
+function escapeBrackets(text: string) {
+  // 代码块与行内代码已由调用方的 protector 处理，这里只需匹配 LaTeX 括号
+  // 转换时 trim 内部空格，使生成的 $..$ / $$..$$ 符合 GFM math 定界符规则
+  // （$ 内侧紧贴空格不算合法定界符）
+  const pattern = /\\\[([\s\S]*?[^\\])\\\]|\\\((.*?)\\\)/g;
+  return text.replace(pattern, (match, squareBracket, roundBracket) => {
+    if (squareBracket) {
+      return `$$${squareBracket.trim()}$$`;
+    } else if (roundBracket) {
+      return `$${roundBracket.trim()}$`;
+    }
+    return match;
+  });
 }
 /**
  * 加粗标记处理器
@@ -1927,6 +1908,40 @@ function FormulaPreviewModal(props: {
   );
 }
 
+// remark-math 5.x 把所有 $..$ 和 $$..$$ 都识别为 inlineMath，
+// 但 align/equation/gather/split 等环境只能在 displayMode 下渲染。
+// 这里在 rehype 层扫描 hast 树，把含这类环境的 math-inline 节点
+// className 改成 math-display，使后续 RehypeKatex 用 displayMode 渲染。
+//
+// 注：保留 tagName 为 span，避免 <div> 嵌入 <p> 触发 React hydration 警告
+// （rehype-katex 按 className 判断 displayMode，不限制 tagName；
+//  KaTeX 在 displayMode 下输出的也是 <span class="katex-display">）。
+const REQUIRES_DISPLAY_MATH =
+  /\\begin\{(?:equation|equation\*|align|align\*|gather|gather\*|split)\}/;
+
+function rehypeFixDisplayMath() {
+  function getText(node: any): string {
+    if (node.type === "text") return node.value || "";
+    if (node.children) return node.children.map(getText).join("");
+    return "";
+  }
+  function walk(node: any) {
+    if (
+      node.type === "element" &&
+      node.tagName === "span" &&
+      Array.isArray(node.properties?.className) &&
+      node.properties.className.includes("math-inline") &&
+      REQUIRES_DISPLAY_MATH.test(getText(node))
+    ) {
+      node.properties.className = node.properties.className.map((c: string) =>
+        c === "math-inline" ? "math-display" : c,
+      );
+    }
+    if (node.children) for (const c of node.children) walk(c);
+  }
+  return (tree: any) => walk(tree);
+}
+
 function R_MarkDownContent(props: {
   content: string;
   searchingTime?: number;
@@ -1953,10 +1968,15 @@ function R_MarkDownContent(props: {
     content = processBoldMarkers(content); // 加粗处理
     content = autoFixLatexDisplayMode(content); // 修复 LaTeX 展示模式
 
-    // 3. 恢复保护区域
+    // 3. 流式期间：转义未闭合的公式（必须在 restore 前，复用代码块保护）
+    if (isStreaming) {
+      content = escapeIncompleteFormulas(content);
+    }
+
+    // 4. 恢复保护区域
     content = restore(content);
 
-    // 4. 处理 search/think 标签
+    // 5. 处理 search/think 标签
     const { searchText, remainText: searchRemainText } = formatSearchText(
       content,
       props.searchingTime,
@@ -1966,11 +1986,6 @@ function R_MarkDownContent(props: {
       props.thinkingTime,
     );
     content = searchText + thinkText + remainText;
-
-    // 5. 流式期间：转义未闭合的公式，使已闭合的公式正常渲染
-    if (isStreaming) {
-      content = escapeIncompleteFormulas(content);
-    }
 
     return tryWrapHtmlCode(content);
   }, [props.content, props.searchingTime, props.thinkingTime, isStreaming]);
@@ -1983,6 +1998,7 @@ function R_MarkDownContent(props: {
   const rehypePlugins = useMemo(
     () => [
       RehypeRaw,
+      rehypeFixDisplayMath, // 必须在 RehypeKatex 之前
       RehypeKatex,
       [rehypeSanitize, sanitizeOptions],
       [
