@@ -42,6 +42,7 @@ export const DEFAULT_CONFIG = {
   submitKey: SubmitKey.Enter,
   avatar: "1f603",
   fontSize: 16, // base font size in px, used in chat title and markdown content
+  messageMaxWidth: 80, // chat message max width in percent (mobile always 100%)
   theme: Theme.Auto as Theme,
   tightBorder: !!config?.isApp,
   sendPreviewBubble: true,

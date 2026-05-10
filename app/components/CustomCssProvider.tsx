@@ -14,6 +14,28 @@ export function CustomCssProvider() {
     setMounted(true);
   }, []);
 
+  // --message-max-width 通过 documentElement inline style 注入，
+  // 以保证优先级高于 globals.scss / chat.module.scss 中的 :root 规则；
+  // 同时监听移动端 media query：移动端清除 inline 值，回退到样式表中的 100%。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 600px)");
+    const apply = () => {
+      const root = document.documentElement;
+      const value = Number.isFinite(config.messageMaxWidth)
+        ? config.messageMaxWidth
+        : 80;
+      if (mq.matches) {
+        root.style.removeProperty("--message-max-width");
+      } else {
+        root.style.setProperty("--message-max-width", `${value}%`);
+      }
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, [config.messageMaxWidth]);
+
   // 基准字体样式，独立于自定义 CSS
   const baseFontCss = useMemo(
     () => `:root { font-size: ${config.fontSize}px; }`,

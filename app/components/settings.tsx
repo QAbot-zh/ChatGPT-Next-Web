@@ -1695,6 +1695,32 @@ export function Settings() {
         </ListItem>
 
         <ListItem
+          title={Locale.Settings.MessageMaxWidth.Title}
+          subTitle={Locale.Settings.MessageMaxWidth.SubTitle}
+        >
+          <input
+            aria-label={Locale.Settings.MessageMaxWidth.Title}
+            type="number"
+            min={50}
+            max={100}
+            value={
+              Number.isFinite(config.messageMaxWidth)
+                ? config.messageMaxWidth
+                : 80
+            }
+            onChange={(e) => {
+              const parsed = Number.parseInt(e.currentTarget.value);
+              updateConfig(
+                (config) =>
+                  (config.messageMaxWidth = Number.isFinite(parsed)
+                    ? parsed
+                    : 80),
+              );
+            }}
+          />
+        </ListItem>
+
+        <ListItem
           title={Locale.Settings.AutoGenerateTitle.Title}
           subTitle={Locale.Settings.AutoGenerateTitle.SubTitle}
         >

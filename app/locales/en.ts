@@ -521,6 +521,11 @@ const en: LocaleType = {
       SubTitle:
         "Adjust base font size (1em) of app, which referenced in the chat title",
     },
+    MessageMaxWidth: {
+      Title: "Message Max Width (%)",
+      SubTitle:
+        "Maximum width of chat message bubble content. Mobile is always 100%",
+    },
     InjectSystemPrompts: {
       Title: "Inject System Prompts",
       SubTitle: "Inject a global system prompt for every request",

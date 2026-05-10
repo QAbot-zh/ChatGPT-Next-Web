@@ -492,6 +492,10 @@ const cn = {
       SubTitle:
         "整体程序风格的字体基准（1em）, 参考聊天标题的字体大小，如自定义css中有设置则以自定义css为准",
     },
+    MessageMaxWidth: {
+      Title: "消息最大宽度 (%)",
+      SubTitle: "聊天气泡内容的最大宽度占比，移动端始终为 100%",
+    },
     InjectSystemPrompts: {
       Title: "注入系统级提示信息",
       SubTitle:

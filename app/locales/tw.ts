@@ -234,6 +234,10 @@ const tw = {
       Title: "基準字型大小",
       SubTitle: "整體程式風格的字型基準（1em），參考聊天標題的字型大小",
     },
+    MessageMaxWidth: {
+      Title: "訊息最大寬度 (%)",
+      SubTitle: "聊天訊息內容的最大寬度佔比，行動裝置永遠為 100%",
+    },
     InjectSystemPrompts: {
       Title: "匯入系統提示",
       SubTitle: "強制在每個請求的訊息列表開頭新增一個模擬 ChatGPT 的系統提示",
