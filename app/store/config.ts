@@ -83,8 +83,8 @@ export const DEFAULT_CONFIG = {
     frequency_penalty_enabled: false,
     reasoning_effort: "none",
     sendMemory: true,
-    historyMessageCount: 10,
-    compressMessageLengthThreshold: 2000,
+    historyMessageCount: 20,
+    compressMessageLengthThreshold: 20000,
     compressModel: "" as ModelType,
     compressProviderName: "" as ServiceProvider,
     // translateModel: "gpt-4o-mini" as ModelType,
@@ -291,18 +291,8 @@ export const useAppConfig = createPersistStore(
         state.modelConfig.max_tokens = 8000;
       }
       if (version < 4.6) {
-        if (
-          state.modelConfig.historyMessageCount === undefined ||
-          state.modelConfig.historyMessageCount === 4
-        ) {
-          state.modelConfig.historyMessageCount = 10;
-        }
-        if (
-          state.modelConfig.compressMessageLengthThreshold === undefined ||
-          state.modelConfig.compressMessageLengthThreshold === 1000
-        ) {
-          state.modelConfig.compressMessageLengthThreshold = 2000;
-        }
+        state.modelConfig.historyMessageCount = 20;
+        state.modelConfig.compressMessageLengthThreshold = 20000;
       }
       return state as any;
     },
