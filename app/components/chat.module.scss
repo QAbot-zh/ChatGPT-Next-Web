@@ -1589,7 +1589,7 @@
   border: var(--border-in-light);
   cursor: pointer;
   font-size: var(--text-xs);
-  transition: all 0.2s ease;
+  transition: all 0.1s ease;
 
   &:hover {
     background-color: var(--hover-color);
@@ -1799,7 +1799,7 @@
   justify-content: center;
   cursor: pointer;
   z-index: 10;
-  transition: all 0.2s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
 
   &:hover {
     background-color: var(--hover-color);
@@ -1878,7 +1878,7 @@
   position: absolute;
   right: 36px;
   top: 50%;
-  transform: translateY(-50%) translateX(10px);
+  transform: translateY(-50%) translateX(6px);
   width: 240px;
   max-height: 360px;
   background: var(--white);
@@ -1890,7 +1890,7 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: all 0.2s ease;
+  transition: opacity 0.1s ease, transform 0.1s ease;
   // 添加左侧 padding 作为鼠标移动的缓冲区
   padding-left: 10px;
   margin-right: -10px;
@@ -2025,7 +2025,7 @@
   flex-direction: row;
   align-items: center;
   gap: 6px;
-  transition: all 0.15s ease;
+  transition: background-color 0.08s ease, border-color 0.08s ease;
   border-left: 2px solid transparent;
 
   &:hover {
@@ -2065,6 +2065,38 @@
   font-size: 13px;
 }
 
+.chat-delete-node-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  line-height: 1.5;
+}
+
+.chat-delete-node-preview {
+  max-height: 180px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: var(--border-in-light);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.chat-delete-node-preview-role {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--black);
+  opacity: 0.68;
+}
+
+.chat-delete-node-preview-content {
+  color: var(--black);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .chat-structure-map {
   padding: 4px 0 8px 0;
 }
@@ -2096,11 +2128,17 @@
   cursor: pointer;
 }
 
+.chat-graph-node-hit-area {
+  fill: transparent;
+  stroke: transparent;
+  pointer-events: all;
+}
+
 .chat-graph-node {
   fill: rgba(0, 0, 0, 0.08);
   stroke: var(--white);
   stroke-width: 1;
-  transition: transform 0.15s ease, fill 0.15s ease, opacity 0.15s ease;
+  transition: transform 0.08s ease, fill 0.08s ease, opacity 0.08s ease;
   opacity: 0.72;
 }
 
@@ -2129,6 +2167,19 @@
   filter: drop-shadow(0 4px 8px rgba(31, 157, 99, 0.2));
 }
 
+.chat-graph-node-error {
+  fill: #ffe1df;
+  stroke: #e5484d;
+  stroke-width: 1.2;
+  opacity: 1;
+}
+
+.chat-graph-node-error-active {
+  fill: #e5484d;
+  opacity: 1;
+  filter: drop-shadow(0 4px 8px rgba(229, 72, 77, 0.22));
+}
+
 .chat-graph-node-text {
   font-size: 5px;
   fill: var(--black);
@@ -2137,8 +2188,52 @@
   font-weight: 600;
 }
 
+.chat-graph-node-text-error {
+  fill: #b42318;
+}
+
 .chat-graph-node-text-active {
   fill: var(--white);
+}
+
+.chat-graph-node-delete-wrap {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.06s ease;
+}
+
+.chat-graph-node-group:hover .chat-graph-node-delete-wrap,
+.chat-graph-node-group:focus-within .chat-graph-node-delete-wrap {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-graph-node-delete {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #e5484d;
+  background: var(--white);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background-color 0.08s ease, transform 0.08s ease;
+
+  &:hover {
+    background: rgba(229, 72, 77, 0.12);
+    transform: scale(1.08);
+  }
+
+  span {
+    transform: translateY(-0.5px);
+  }
 }
 
 .chat-structure-row {
@@ -2149,7 +2244,7 @@
   cursor: pointer;
   border-left: 2px solid transparent;
   color: var(--black);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.08s ease, border-color 0.08s ease;
 
   &:hover {
     background-color: rgba(0, 0, 0, 0.06);
@@ -2159,6 +2254,15 @@
 .chat-structure-row-active {
   background-color: rgba(0, 0, 0, 0.04);
   border-left-color: var(--primary);
+}
+
+.chat-structure-row-error {
+  background-color: rgba(229, 72, 77, 0.08);
+  border-left-color: #e5484d;
+
+  &:hover {
+    background-color: rgba(229, 72, 77, 0.12);
+  }
 }
 
 .chat-structure-rail {
@@ -2198,6 +2302,10 @@
   background: var(--primary);
 }
 
+.chat-structure-dot-error {
+  background: #e5484d;
+}
+
 .chat-structure-content {
   flex: 1;
   min-width: 0;
@@ -2208,6 +2316,42 @@
   align-items: center;
   gap: 5px;
   margin-bottom: 3px;
+}
+
+.chat-structure-delete {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #e5484d;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 0.06s ease, background-color 0.08s ease,
+    transform 0.08s ease;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+
+  &:hover {
+    opacity: 1;
+    background: rgba(229, 72, 77, 0.12);
+    transform: scale(1.05);
+  }
+
+  span {
+    transform: translateY(-0.5px);
+  }
+}
+
+.chat-structure-row:hover .chat-structure-delete,
+.chat-structure-row:focus-within .chat-structure-delete {
+  opacity: 0.62;
 }
 
 .chat-structure-role {
@@ -2261,8 +2405,8 @@
   cursor: pointer;
   font-size: 11px;
   opacity: 0.65;
-  transition: transform 0.15s ease, opacity 0.15s ease,
-    background-color 0.15s ease;
+  transition: transform 0.08s ease, opacity 0.08s ease,
+    background-color 0.08s ease;
 
   &:hover {
     opacity: 1;
@@ -2275,6 +2419,17 @@
   color: var(--white);
   opacity: 1;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.14);
+}
+
+.chat-structure-branch-item-error {
+  background: rgba(229, 72, 77, 0.12);
+  color: #b42318;
+  opacity: 1;
+}
+
+.chat-structure-branch-item-active.chat-structure-branch-item-error {
+  background: #e5484d;
+  color: var(--white);
 }
 
 .chat-structure-divider {

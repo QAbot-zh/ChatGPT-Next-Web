@@ -2328,6 +2328,41 @@ function DualModelToggle(props: {
 type RenderMessageType = ChatMessage & { preview?: boolean };
 type ChatNavigatorViewMode = "structure" | "graph";
 
+const DELETE_NODE_PREVIEW_LENGTH = 180;
+
+function getDeleteNodePreview(message: ChatMessage) {
+  const text = getMessageTextContent(message)
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!text) return Locale.Chat.Navigator.EmptyMessage;
+
+  return text.length > DELETE_NODE_PREVIEW_LENGTH
+    ? `${text.slice(0, DELETE_NODE_PREVIEW_LENGTH).trimEnd()}...`
+    : text;
+}
+
+function getDeleteNodeConfirmContent(message?: ChatMessage) {
+  return (
+    <div className={styles["chat-delete-node-confirm"]}>
+      <div>{Locale.Chat.MessageTree.DeleteNodeConfirm}</div>
+      {message && (
+        <div className={styles["chat-delete-node-preview"]}>
+          <div className={styles["chat-delete-node-preview-role"]}>
+            {message.role === "user"
+              ? Locale.Chat.Navigator.User
+              : Locale.Chat.Navigator.Assistant}
+          </div>
+          <div className={styles["chat-delete-node-preview-content"]}>
+            {getDeleteNodePreview(message)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DualModelView(props: {
   primaryMessages: ChatMessage[];
   secondaryMessages: ChatMessage[];
@@ -2346,6 +2381,7 @@ function DualModelView(props: {
   treeSession?: ChatSession;
   secondaryTreeSession?: ChatSession;
   onActivateTreeNode?: (messageId: string, isSecondary?: boolean) => void;
+  onDeleteTreeNode?: (messageId: string, isSecondary?: boolean) => void;
   navigatorViewMode: ChatNavigatorViewMode;
   onNavigatorViewModeChange: (viewMode: ChatNavigatorViewMode) => void;
   onScrollBothToBottom?: (fn: (instant?: boolean) => void) => void; // 注册滚动到底部的回调
@@ -2610,6 +2646,9 @@ function DualModelView(props: {
                 }
               });
             }}
+            onDeleteTreeNode={(messageId) => {
+              props.onDeleteTreeNode?.(messageId, false);
+            }}
             inPanel
           />
         </div>
@@ -2699,6 +2738,9 @@ function DualModelView(props: {
                 }
               });
             }}
+            onDeleteTreeNode={(messageId) => {
+              props.onDeleteTreeNode?.(messageId, true);
+            }}
             inPanel
           />
         </div>
@@ -2714,6 +2756,7 @@ function ChatNavigator(props: {
   onJumpTo: (index: number) => void;
   treeSession?: ChatSession;
   onActivateTreeNode?: (messageId: string) => void;
+  onDeleteTreeNode?: (messageId: string) => void;
   viewMode?: ChatNavigatorViewMode;
   onViewModeChange?: (viewMode: ChatNavigatorViewMode) => void;
   inPanel?: boolean; // 是否在双模型 panel 内
@@ -2762,7 +2805,7 @@ function ChatNavigator(props: {
     cancelCloseTimer();
     closeTimerRef.current = setTimeout(() => {
       setIsOpen(false);
-    }, 140);
+    }, 80);
   }, [cancelCloseTimer]);
 
   useEffect(() => {
@@ -2813,6 +2856,7 @@ function ChatNavigator(props: {
           index: index + 1,
           role: sibling.role,
           active: id === message.id,
+          isError: !!sibling.isError,
         };
       });
 
@@ -2829,6 +2873,7 @@ function ChatNavigator(props: {
         activeSiblingIndex:
           activeSiblingIndex >= 0 ? activeSiblingIndex + 1 : 1,
         beClear: !!message.beClear,
+        isError: !!message.isError,
       };
     });
   }, [props.currentIndex, props.messages, props.treeSession]);
@@ -2919,6 +2964,7 @@ function ChatNavigator(props: {
         y: number;
         active: boolean;
         beClear: boolean;
+        isError: boolean;
         role: string;
         label: string;
         order: number;
@@ -2937,6 +2983,7 @@ function ChatNavigator(props: {
         y: marginY + nodeRadius + position.depth * rowGap,
         active: activeIds.has(id),
         beClear: !!node.beClear,
+        isError: !!node.isError,
         role: node.role,
         label: `${
           node.role === "user"
@@ -3104,15 +3151,29 @@ function ChatNavigator(props: {
                       onClick={() => activateTreeNode(node.id)}
                     >
                       <title>{node.label}</title>
+                      {props.onDeleteTreeNode && (
+                        <rect
+                          x={-8}
+                          y={-18}
+                          width={30}
+                          height={28}
+                          rx={4}
+                          className={styles["chat-graph-node-hit-area"]}
+                        />
+                      )}
                       <circle
                         r={graphData.nodeRadius}
                         className={clsx(
                           styles["chat-graph-node"],
-                          node.role === "user"
+                          node.isError
+                            ? styles["chat-graph-node-error"]
+                            : node.role === "user"
                             ? styles["chat-graph-node-user"]
                             : styles["chat-graph-node-assistant"],
                           node.active &&
-                            (node.role === "user"
+                            (node.isError
+                              ? styles["chat-graph-node-error-active"]
+                              : node.role === "user"
                               ? styles["chat-graph-node-user-active"]
                               : styles["chat-graph-node-assistant-active"]),
                         )}
@@ -3122,11 +3183,36 @@ function ChatNavigator(props: {
                         dominantBaseline="middle"
                         className={clsx(
                           styles["chat-graph-node-text"],
+                          node.isError &&
+                            !node.active &&
+                            styles["chat-graph-node-text-error"],
                           node.active && styles["chat-graph-node-text-active"],
                         )}
                       >
                         {node.order}
                       </text>
+                      {props.onDeleteTreeNode && (
+                        <foreignObject
+                          x={5}
+                          y={-15}
+                          width={16}
+                          height={16}
+                          className={styles["chat-graph-node-delete-wrap"]}
+                        >
+                          <button
+                            type="button"
+                            className={styles["chat-graph-node-delete"]}
+                            title={Locale.Chat.Actions.Delete}
+                            aria-label={Locale.Chat.Actions.Delete}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              props.onDeleteTreeNode?.(node.id);
+                            }}
+                          >
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        </foreignObject>
+                      )}
                     </g>
                   ))}
                 </svg>
@@ -3145,6 +3231,7 @@ function ChatNavigator(props: {
                       styles["chat-structure-row"],
                       row.isViewportActive &&
                         styles["chat-structure-row-active"],
+                      row.isError && styles["chat-structure-row-error"],
                     )}
                     onClick={() => activateTreeNode(row.id)}
                   >
@@ -3155,6 +3242,7 @@ function ChatNavigator(props: {
                           row.role === "user"
                             ? styles["chat-structure-dot-user"]
                             : styles["chat-structure-dot-assistant"],
+                          row.isError && styles["chat-structure-dot-error"],
                         )}
                       />
                     </div>
@@ -3173,6 +3261,20 @@ function ChatNavigator(props: {
                             {row.activeSiblingIndex}/{row.branchItems.length}
                           </span>
                         )}
+                        {props.onDeleteTreeNode && (
+                          <button
+                            type="button"
+                            className={styles["chat-structure-delete"]}
+                            title={Locale.Chat.Actions.Delete}
+                            aria-label={Locale.Chat.Actions.Delete}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              props.onDeleteTreeNode?.(row.id);
+                            }}
+                          >
+                            <span aria-hidden="true">×</span>
+                          </button>
+                        )}
                       </div>
                       <div className={styles["chat-structure-preview"]}>
                         {row.preview}
@@ -3187,6 +3289,8 @@ function ChatNavigator(props: {
                                 styles["chat-structure-branch-item"],
                                 branch.active &&
                                   styles["chat-structure-branch-item-active"],
+                                branch.isError &&
+                                  styles["chat-structure-branch-item-error"],
                               )}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -4064,8 +4168,11 @@ function ChatComponent() {
     if (!msgId) return;
 
     if (session.enableMessageTree) {
+      const deletingMessage =
+        session.messageTree?.[msgId] ??
+        session.messages.find((message) => message.id === msgId);
       const confirmed = await showConfirm(
-        Locale.Chat.MessageTree.DeleteNodeConfirm,
+        getDeleteNodeConfirmContent(deletingMessage),
       );
       if (!confirmed) return;
 
@@ -4373,8 +4480,11 @@ function ChatComponent() {
 
   // 副模型消息删除
   const onDeleteSecondary = async (msgId: string) => {
+    const deletingMessage =
+      session.secondaryMessageTree?.[msgId] ??
+      session.secondaryMessages?.find((message) => message.id === msgId);
     const confirmed = await showConfirm(
-      Locale.Chat.MessageTree.DeleteNodeConfirm,
+      getDeleteNodeConfirmContent(deletingMessage),
     );
     if (!confirmed) return;
 
@@ -6110,6 +6220,13 @@ function ChatComponent() {
                 isSecondary ? "secondary" : "primary",
               )
             }
+            onDeleteTreeNode={(messageId, isSecondary) => {
+              if (isSecondary) {
+                onDeleteSecondary(messageId);
+                return;
+              }
+              onDelete(messageId);
+            }}
             navigatorViewMode={navigatorViewMode}
             onNavigatorViewModeChange={setNavigatorViewMode}
             onScrollBothToBottom={(fn) => {
@@ -7053,6 +7170,7 @@ function ChatComponent() {
                 setTimeout(() => setHighlightIndex(null), 3000);
               });
             }}
+            onDeleteTreeNode={onDelete}
           />
         )}
       </div>

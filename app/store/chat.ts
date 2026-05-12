@@ -579,17 +579,8 @@ export function _removeMessageFromTree(
   }
 
   const message = tree[messageId];
-  const idsToDelete: string[] = [];
-  const idsToDeleteSet = new Set<string>();
-  const collect = (id: string) => {
-    const node = tree[id];
-    if (!node || idsToDeleteSet.has(id)) return;
-    idsToDeleteSet.add(id);
-    idsToDelete.push(id);
-    (node.childrenIds ?? []).forEach(collect);
-  };
-  collect(messageId);
-  cleanupDeletedMessageRuntimeState(session, idsToDelete, source);
+  const deletedMessageIds = [messageId];
+  cleanupDeletedMessageRuntimeState(session, deletedMessageIds, source);
 
   const ownerParentId =
     message.parentId && tree[message.parentId]?.childrenIds?.includes(messageId)
@@ -603,20 +594,59 @@ export function _removeMessageFromTree(
     ? accessor.rootMessageIds ?? []
     : tree[ownerParentId]?.childrenIds ?? [];
   const deletingIndex = siblings.indexOf(messageId);
-  const nextSiblings = siblings.filter((id) => !idsToDeleteSet.has(id));
-  const nextActiveId =
+  const childIds = (message.childrenIds ?? []).filter(
+    (id) => id !== messageId && !!tree[id],
+  );
+  const nextSiblings: string[] = [];
+  const seenSiblingIds = new Set<string>();
+  const addSibling = (id: string) => {
+    if (!id || id === messageId || !tree[id] || seenSiblingIds.has(id)) return;
+    seenSiblingIds.add(id);
+    nextSiblings.push(id);
+  };
+
+  siblings.forEach((id) => {
+    if (id === messageId) {
+      childIds.forEach(addSibling);
+    } else {
+      addSibling(id);
+    }
+  });
+  if (deletingIndex < 0) {
+    childIds.forEach(addSibling);
+  }
+
+  childIds.forEach((childId) => {
+    tree[childId].parentId = isRootMessage ? undefined : ownerParentId;
+  });
+
+  const promotedActiveChildId =
+    message.activeChildId &&
+    message.activeChildId !== NO_ACTIVE_MESSAGE &&
+    childIds.includes(message.activeChildId)
+      ? message.activeChildId
+      : childIds[0];
+  const fallbackActiveId =
     nextSiblings[
       Math.min(Math.max(deletingIndex, 0), Math.max(nextSiblings.length - 1, 0))
     ] ?? NO_ACTIVE_MESSAGE;
+  const nextActiveId = promotedActiveChildId ?? fallbackActiveId;
 
-  idsToDelete.forEach((id) => delete tree[id]);
+  delete tree[messageId];
 
   if (isRootMessage) {
     accessor.setRootMessageIds(nextSiblings);
-    accessor.setActiveRootId(nextActiveId);
+    if (accessor.activeRootId === messageId || !accessor.activeRootId) {
+      accessor.setActiveRootId(nextActiveId);
+    }
   } else if (ownerParentId && tree[ownerParentId]) {
     tree[ownerParentId].childrenIds = nextSiblings;
-    tree[ownerParentId].activeChildId = nextActiveId;
+    if (
+      tree[ownerParentId].activeChildId === messageId ||
+      !tree[ownerParentId].activeChildId
+    ) {
+      tree[ownerParentId].activeChildId = nextActiveId;
+    }
   }
 
   accessor.setRootMessageIds(
@@ -644,7 +674,7 @@ export function _removeMessageFromTree(
   resetMemoryIfDeletedSummarizedMessages(
     session,
     activeMessagesBeforeDelete,
-    idsToDelete,
+    deletedMessageIds,
     source,
   );
   syncSessionDerivedState(session, source);
