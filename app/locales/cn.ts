@@ -255,6 +255,11 @@ const cn = {
         ReplacePlaceholder: "要替换成的文本，如：***",
         EmptySearchToast: "查找文本不能为空",
         isReplacingToast: "正在替换中...",
+        NotFoundToast: (searchText: string) =>
+          `未找到"${searchText}"，无法替换`,
+        SuccessToast: (searchText: string, replaceText: string) =>
+          `替换完成：${searchText} → ${replaceText}`,
+        ErrorToast: "替换时出错",
         SuccessClearChatToast: "已清空输入，点击撤销并恢复文本",
         Undo: "撤销替换",
         UndoToast: "已撤销替换操作",
@@ -273,6 +278,18 @@ const cn = {
       },
     },
     Rename: "重命名对话",
+    DualModel: {
+      Enable: "开启双模型对话",
+      Disable: "关闭双模型对话",
+      SwitchPrimaryTooltip: "点击切换主模型",
+      SwitchSecondaryTooltip: "点击切换副模型",
+      Primary: "主模型",
+      Secondary: "副模型",
+      Unselected: "未选择",
+      SelectSecondaryFirst: "请先选择副模型",
+      PrimaryModelSetToast: (model: string) => `主模型已设置为: ${model}`,
+      SecondaryModelSetToast: (model: string) => `副模型已设置为: ${model}`,
+    },
     Navigator: {
       Title: "对话导航",
       Toggle: "打开对话导航",

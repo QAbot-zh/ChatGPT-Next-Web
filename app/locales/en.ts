@@ -271,6 +271,11 @@ const en: LocaleType = {
         ReplacePlaceholder: "Text to replace with, e.g.: ***",
         EmptySearchToast: "Search text cannot be empty",
         isReplacingToast: "Replacing...",
+        NotFoundToast: (searchText: string) =>
+          `Could not find "${searchText}", so nothing was replaced`,
+        SuccessToast: (searchText: string, replaceText: string) =>
+          `Replacement complete: ${searchText} -> ${replaceText}`,
+        ErrorToast: "Text replacement failed",
         SuccessClearChatToast: "Input cleared. Click undo to restore text",
         Undo: "Undo Replace",
         UndoToast: "Text replacement undone",
@@ -293,6 +298,19 @@ const en: LocaleType = {
       },
     },
     Rename: "Rename Chat",
+    DualModel: {
+      Enable: "Enable dual-model chat",
+      Disable: "Disable dual-model chat",
+      SwitchPrimaryTooltip: "Click to switch primary model",
+      SwitchSecondaryTooltip: "Click to switch secondary model",
+      Primary: "Primary model",
+      Secondary: "Secondary model",
+      Unselected: "Not selected",
+      SelectSecondaryFirst: "Please select a secondary model first",
+      PrimaryModelSetToast: (model: string) => `Primary model set to: ${model}`,
+      SecondaryModelSetToast: (model: string) =>
+        `Secondary model set to: ${model}`,
+    },
     Navigator: {
       Title: "Chat Navigator",
       Toggle: "Open chat navigator",

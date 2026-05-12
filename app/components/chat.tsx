@@ -1315,16 +1315,23 @@ export function ChatActions(props: {
       const newText = props.userInput.split(searchText).join(replaceText);
 
       if (newText === props.userInput) {
-        showToast(`未找到"${searchText}"，无法替换`);
+        showToast(
+          Locale.Chat.InputActions.ReplaceText.NotFoundToast(searchText),
+        );
         setOriginalTextForReplace(null);
       } else {
         setReplacedText(newText);
         props.setUserInput(newText);
-        showToast(`替换完成：${searchText} → ${replaceText}`);
+        showToast(
+          Locale.Chat.InputActions.ReplaceText.SuccessToast(
+            searchText,
+            replaceText,
+          ),
+        );
       }
     } catch (error) {
       console.error("Text replacement error:", error);
-      showToast("替换时出错");
+      showToast(Locale.Chat.InputActions.ReplaceText.ErrorToast);
     } finally {
       setIsReplacing(false);
       setShowReplaceModal(false);
@@ -2307,8 +2314,8 @@ function DualModelToggle(props: {
           props.disabled
             ? props.disabledTitle
             : props.enabled
-            ? "关闭双模型对话"
-            : "开启双模型对话"
+            ? Locale.Chat.DualModel.Disable
+            : Locale.Chat.DualModel.Enable
         }
         tooltipPosition="bottom"
         onClick={() => {
@@ -2568,7 +2575,7 @@ function DualModelView(props: {
       {/* 主模型面板 */}
       <div className={styles["model-panel"]}>
         <div className={styles["panel-header"]}>
-          <Tooltip content="点击切换主模型">
+          <Tooltip content={Locale.Chat.DualModel.SwitchPrimaryTooltip}>
             <div
               className={styles["panel-title-clickable"]}
               onClick={props.onPrimaryModelSelect}
@@ -2579,13 +2586,13 @@ function DualModelView(props: {
               <span className={styles["panel-title-arrow"]}>▼</span>
             </div>
           </Tooltip>
-          <Tooltip content="点击切换主模型">
+          <Tooltip content={Locale.Chat.DualModel.SwitchPrimaryTooltip}>
             <span
               className={styles["panel-badge-primary"]}
               onClick={props.onPrimaryModelSelect}
               style={{ cursor: "pointer" }}
             >
-              主模型
+              {Locale.Chat.DualModel.Primary}
             </span>
           </Tooltip>
         </div>
@@ -2660,7 +2667,7 @@ function DualModelView(props: {
       {/* 副模型面板 */}
       <div className={styles["model-panel"]}>
         <div className={styles["panel-header"]}>
-          <Tooltip content="点击切换副模型">
+          <Tooltip content={Locale.Chat.DualModel.SwitchSecondaryTooltip}>
             <div
               className={styles["panel-title-clickable"]}
               onClick={props.onSecondaryModelSelect}
@@ -2671,13 +2678,13 @@ function DualModelView(props: {
               <span className={styles["panel-title-arrow"]}>▼</span>
             </div>
           </Tooltip>
-          <Tooltip content="点击切换副模型">
+          <Tooltip content={Locale.Chat.DualModel.SwitchSecondaryTooltip}>
             <span
               className={styles["panel-badge-secondary"]}
               onClick={props.onSecondaryModelSelect}
               style={{ cursor: "pointer" }}
             >
-              副模型
+              {Locale.Chat.DualModel.Secondary}
             </span>
           </Tooltip>
         </div>
@@ -4539,7 +4546,7 @@ function ChatComponent() {
 
     const secondaryModelConfig = session.secondaryModelConfig;
     if (!secondaryModelConfig) {
-      showToast("请先选择副模型");
+      showToast(Locale.Chat.DualModel.SelectSecondaryFirst);
       return;
     }
 
@@ -6203,7 +6210,7 @@ function ChatComponent() {
               secondaryModelInfo?.displayName ||
               session.secondaryModelConfig?.displayName ||
               session.secondaryModelConfig?.model ||
-              "未选择"
+              Locale.Chat.DualModel.Unselected
             }
             context={context}
             isLoading={isLoading}
@@ -7569,7 +7576,11 @@ function ChatComponent() {
                 providerName as ServiceProvider;
             });
             setShowPrimaryModelSelector(false);
-            showToast(`主模型已设置为: ${selectedModel?.displayName || model}`);
+            showToast(
+              Locale.Chat.DualModel.PrimaryModelSetToast(
+                selectedModel?.displayName || model,
+              ),
+            );
           }}
         />
       )}
@@ -7607,7 +7618,11 @@ function ChatComponent() {
               selectedModel?.displayName,
             );
             setShowSecondaryModelSelector(false);
-            showToast(`副模型已设置为: ${selectedModel?.displayName || model}`);
+            showToast(
+              Locale.Chat.DualModel.SecondaryModelSetToast(
+                selectedModel?.displayName || model,
+              ),
+            );
           }}
         />
       )}
