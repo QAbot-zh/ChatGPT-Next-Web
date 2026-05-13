@@ -37,7 +37,7 @@ import Locale, { AllLangs, ALL_LANG_OPTIONS, Lang } from "../locales";
 import { useNavigate } from "react-router-dom";
 
 import chatStyle from "./chat.module.scss";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   copyToClipboard,
   downloadAs,
@@ -437,6 +437,72 @@ export function ContextPrompts(props: {
   );
 }
 
+function MaskPresetPreview(props: {
+  mask: Mask;
+  placement: "top" | "bottom";
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
+  const context = getMaskPresetPreviewItems(props.mask);
+
+  if (context.length === 0) return null;
+
+  return (
+    <div
+      className={`${styles["mask-preview"]} ${
+        props.placement === "top"
+          ? styles["mask-preview-top"]
+          : styles["mask-preview-bottom"]
+      }`}
+      onMouseEnter={props.onMouseEnter}
+      onMouseLeave={props.onMouseLeave}
+    >
+      <MaskPresetContent items={context} />
+    </div>
+  );
+}
+
+function getMaskPresetPreviewItems(mask: Mask) {
+  return mask.context
+    .map((prompt, index) => ({
+      prompt,
+      index,
+      content: getMessageTextContent(prompt).trim(),
+    }))
+    .filter((item) => item.content.length > 0);
+}
+
+function MaskPresetContent(props: {
+  items: ReturnType<typeof getMaskPresetPreviewItems>;
+}) {
+  return (
+    <>
+      {props.items.map(({ prompt, index, content }) => (
+        <div className={styles["mask-preview-item"]} key={prompt.id ?? index}>
+          <div className={styles["mask-preview-role"]}>{prompt.role}</div>
+          <div className={styles["mask-preview-content"]}>{content}</div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function MaskDeleteConfirm(props: { mask: Mask }) {
+  const items = getMaskPresetPreviewItems(props.mask);
+
+  return (
+    <div className={styles["mask-delete-confirm"]}>
+      <div>{Locale.Mask.Item.DeleteConfirm}</div>
+      <div className={styles["mask-delete-name"]}>{props.mask.name}</div>
+      {items.length > 0 && (
+        <div className={styles["mask-delete-preview"]}>
+          <MaskPresetContent items={items} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function MaskPage() {
   const navigate = useNavigate();
 
@@ -451,7 +517,49 @@ export function MaskPage() {
 
   const [searchMasks, setSearchMasks] = useState<Mask[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [hoveredMaskId, setHoveredMaskId] = useState<string>();
+  const [previewPlacement, setPreviewPlacement] = useState<"top" | "bottom">(
+    "bottom",
+  );
+  const previewHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const masks = searchText.length > 0 ? searchMasks : allMasks;
+
+  const showMaskPreview = (id: string, element?: HTMLElement) => {
+    if (previewHideTimer.current) {
+      clearTimeout(previewHideTimer.current);
+      previewHideTimer.current = null;
+    }
+    if (element) {
+      const rect = element.getBoundingClientRect();
+      const previewHeight = 260;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setPreviewPlacement(
+        spaceBelow < previewHeight && spaceAbove > spaceBelow
+          ? "top"
+          : "bottom",
+      );
+    }
+    setHoveredMaskId(id);
+  };
+
+  const hideMaskPreview = () => {
+    if (previewHideTimer.current) {
+      clearTimeout(previewHideTimer.current);
+    }
+    previewHideTimer.current = setTimeout(() => {
+      setHoveredMaskId(undefined);
+      previewHideTimer.current = null;
+    }, 160);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewHideTimer.current) {
+        clearTimeout(previewHideTimer.current);
+      }
+    };
+  }, []);
 
   // refactored already, now it accurate
   const onSearch = (text: string) => {
@@ -580,7 +688,14 @@ export function MaskPage() {
 
           <div>
             {masks.map((m) => (
-              <div className={styles["mask-item"]} key={m.id}>
+              <div
+                className={styles["mask-item"]}
+                key={m.id}
+                onMouseEnter={(e) => showMaskPreview(m.id, e.currentTarget)}
+                onMouseLeave={hideMaskPreview}
+                onFocus={(e) => showMaskPreview(m.id, e.currentTarget)}
+                onBlur={hideMaskPreview}
+              >
                 <div className={styles["mask-header"]}>
                   <div className={styles["mask-icon"]}>
                     <MaskAvatar avatar={m.avatar} model={m.modelConfig.model} />
@@ -595,39 +710,59 @@ export function MaskPage() {
                   </div>
                 </div>
                 <div className={styles["mask-actions"]}>
-                  <IconButton
-                    icon={<AddIcon />}
-                    text={Locale.Mask.Item.Chat}
-                    onClick={() => {
-                      chatStore.newSession(m);
-                      navigate(Path.Chat);
-                    }}
-                  />
+                  {!m.builtin && (
+                    <IconButton
+                      icon={<DeleteIcon />}
+                      text={Locale.Mask.Item.Delete}
+                      className={`${styles["mask-action-button"]} ${styles["mask-action-danger"]}`}
+                      onClick={async () => {
+                        if (await showConfirm(<MaskDeleteConfirm mask={m} />)) {
+                          maskStore.delete(m.id);
+                        }
+                      }}
+                    />
+                  )}
+                  {m.builtin && (
+                    <IconButton
+                      icon={<DeleteIcon />}
+                      text={Locale.Mask.Item.Delete}
+                      className={`${styles["mask-action-button"]} ${styles["mask-action-placeholder"]}`}
+                      disabled
+                    />
+                  )}
                   {m.builtin ? (
                     <IconButton
                       icon={<EyeIcon />}
                       text={Locale.Mask.Item.View}
+                      className={styles["mask-action-button"]}
                       onClick={() => setEditingMaskId(m.id)}
                     />
                   ) : (
                     <IconButton
                       icon={<EditIcon />}
                       text={Locale.Mask.Item.Edit}
+                      className={styles["mask-action-button"]}
                       onClick={() => setEditingMaskId(m.id)}
                     />
                   )}
-                  {!m.builtin && (
-                    <IconButton
-                      icon={<DeleteIcon />}
-                      text={Locale.Mask.Item.Delete}
-                      onClick={async () => {
-                        if (await showConfirm(Locale.Mask.Item.DeleteConfirm)) {
-                          maskStore.delete(m.id);
-                        }
-                      }}
-                    />
-                  )}
+                  <IconButton
+                    icon={<AddIcon />}
+                    text={Locale.Mask.Item.Chat}
+                    className={styles["mask-action-button"]}
+                    onClick={() => {
+                      chatStore.newSession(m);
+                      navigate(Path.Chat);
+                    }}
+                  />
                 </div>
+                {hoveredMaskId === m.id && (
+                  <MaskPresetPreview
+                    mask={m}
+                    placement={previewPlacement}
+                    onMouseEnter={() => showMaskPreview(m.id)}
+                    onMouseLeave={hideMaskPreview}
+                  />
+                )}
               </div>
             ))}
           </div>

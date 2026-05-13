@@ -28,14 +28,13 @@ import {
   MIN_SIDEBAR_WIDTH,
   NARROW_SIDEBAR_WIDTH,
   Path,
-  PLUGINS,
   REPO_URL,
 } from "../constant";
 
 import { Link, useNavigate } from "react-router-dom";
 import { isIOS, useMobileScreen } from "../utils";
 import dynamic from "next/dynamic";
-import { showConfirm, Selector } from "./ui-lib";
+import { showConfirm } from "./ui-lib";
 
 const ChatList = dynamic(async () => (await import("./chat-list")).ChatList, {
   loading: () => null,
@@ -272,7 +271,6 @@ export function SideBar(props: { className?: string }) {
 
   // drag side bar
   const { onDragStart, shouldNarrow } = useDragSideBar();
-  const [showPluginSelector, setShowPluginSelector] = useState(false);
 
   const navigate = useNavigate();
   const config = useAppConfig();
@@ -321,31 +319,12 @@ export function SideBar(props: { className?: string }) {
             title={shouldNarrow ? Locale.Discovery.Name : undefined}
             tooltipPosition="right"
             className={styles["sidebar-bar-button"]}
-            onClick={() => setShowPluginSelector(true)}
+            onClick={() =>
+              navigate(Path.SearchChat, { state: { fromHome: true } })
+            }
             shadow
           />
         </div>
-        {showPluginSelector && (
-          <Selector
-            items={[
-              {
-                title: "👇 Please select the plugin you need to use",
-                value: "-",
-                disable: true,
-              },
-              ...PLUGINS.map((item) => {
-                return {
-                  title: item.name,
-                  value: item.path,
-                };
-              }),
-            ]}
-            onClose={() => setShowPluginSelector(false)}
-            onSelection={(s) => {
-              navigate(s[0], { state: { fromHome: true } });
-            }}
-          />
-        )}
       </SideBarHeader>
       <SideBarBody
         onClick={(e) => {
