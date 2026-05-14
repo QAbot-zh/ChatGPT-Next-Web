@@ -58,6 +58,7 @@ import ImprovePromptIcon from "../icons/lightOn.svg";
 // import UploadDocIcon from "../icons/upload-doc.svg";
 import CollapseIcon from "../icons/collapse.svg";
 import ExpandIcon from "../icons/expand.svg";
+import ZenIcon from "../icons/zen.svg";
 import AttachmentIcon from "../icons/paperclip.svg";
 import ToolboxIcon from "../icons/toolbox.svg";
 import EraserIcon from "../icons/eraser.svg";
@@ -6180,6 +6181,22 @@ function ChatComponent() {
                     (config) => (config.tightBorder = !config.tightBorder),
                   );
                 }}
+              />
+            </div>
+          )}
+          {!isMobileScreen && (
+            <div className="window-action-button">
+              <IconButton
+                icon={<ZenIcon />}
+                bordered
+                text={config.zenMode ? undefined : undefined}
+                title={
+                  config.zenMode
+                    ? Locale.Chat.Actions.ExitZen
+                    : Locale.Chat.Actions.EnterZen
+                }
+                tooltipPosition="bottom"
+                onClick={() => config.update((c) => (c.zenMode = !c.zenMode))}
               />
             </div>
           )}

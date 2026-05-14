@@ -34,3 +34,22 @@
 .window-action-button:not(:first-child) {
   margin-left: 10px;
 }
+
+body.zen-mode .window-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background-color: var(--white);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  transform: translateY(-100%);
+  transition: transform 0.25s ease;
+  pointer-events: none;
+}
+
+body.zen-mode[data-zen-header-shown="1"] .window-header,
+body.zen-mode .window-header:hover {
+  transform: translateY(0);
+  pointer-events: auto;
+}

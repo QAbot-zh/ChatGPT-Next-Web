@@ -2,7 +2,7 @@
 
 require("../polyfill");
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 import styles from "./home.module.scss";
 
@@ -17,6 +17,7 @@ import { ModelProvider, Path, SlotID } from "../constant";
 import { ErrorBoundary } from "./error";
 
 import { getISOLang, getLang } from "../locales";
+import Locale from "../locales";
 
 import {
   HashRouter as Router,
@@ -32,6 +33,7 @@ import { ClientApi } from "../client/api";
 import { useAccessStore, useChatStore } from "../store";
 import { identifyDefaultClaudeModel } from "../utils/checkers";
 import { FloatingButton } from "./floating-button";
+import buttonStyles from "./button.module.scss";
 import { CustomCssProvider } from "./CustomCssProvider";
 import { ModelTableProvider } from "../context/model-table";
 
@@ -164,6 +166,28 @@ const useHasHydrated = () => {
   return mounted && chatHydrated && configHydrated;
 };
 
+function ZenExitFab() {
+  const config = useAppConfig();
+  const [showTip, setShowTip] = useState(false);
+  return (
+    <button
+      className={styles["zen-exit-fab"]}
+      onClick={() => config.update((c) => (c.zenMode = false))}
+      onMouseEnter={() => setShowTip(true)}
+      onMouseLeave={() => setShowTip(false)}
+    >
+      <AILogoIcon />
+      {showTip && (
+        <div
+          className={`${buttonStyles["icon-button-tooltip"]} ${buttonStyles["tooltip-right"]}`}
+        >
+          {Locale.Chat.Actions.ExitZen}
+        </div>
+      )}
+    </button>
+  );
+}
+
 function Screen() {
   const config = useAppConfig();
   const location = useLocation();
@@ -174,6 +198,47 @@ function Screen() {
   const isMobileScreen = useMobileScreen();
   const shouldTightBorder =
     getClientConfig()?.isApp || (config.tightBorder && !isMobileScreen);
+  const [zenHeaderShown, setZenHeaderShown] = useState(false);
+
+  // 移动端自动关闭禅模式
+  useEffect(() => {
+    if (isMobileScreen && config.zenMode) {
+      config.update((c) => (c.zenMode = false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobileScreen, config.zenMode]);
+
+  // body 标记 & header 显示数据属性
+  const zenActive = config.zenMode && !isMobileScreen && !isAuth;
+  useEffect(() => {
+    if (zenActive) {
+      document.body.classList.add("zen-mode");
+    } else {
+      document.body.classList.remove("zen-mode");
+    }
+    return () => document.body.classList.remove("zen-mode");
+  }, [zenActive]);
+
+  useEffect(() => {
+    document.body.setAttribute(
+      "data-zen-header-shown",
+      zenHeaderShown ? "1" : "0",
+    );
+  }, [zenHeaderShown]);
+
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showHoverZone = useCallback(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    setZenHeaderShown(true);
+  }, []);
+
+  const hideHoverZone = useCallback(() => {
+    hideTimerRef.current = setTimeout(() => setZenHeaderShown(false), 250);
+  }, []);
 
   if (isArtifact) {
     return (
@@ -195,16 +260,27 @@ function Screen() {
         styles.container +
         ` ${shouldTightBorder ? styles["tight-container"] : styles.container} ${
           getLang() === "ar" ? styles["rtl-screen"] : ""
-        }`
+        }${zenActive ? ` ${styles["zen-mode"]}` : ""}`
       }
     >
       {isAuth ? (
-        <>
-          <AuthPage />
-        </>
+        <AuthPage />
       ) : (
         <>
-          <SideBar className={isHome ? styles["sidebar-show"] : ""} />
+          {!zenActive && (
+            <SideBar className={isHome ? styles["sidebar-show"] : ""} />
+          )}
+
+          {zenActive && (
+            <>
+              <ZenExitFab />
+              <div
+                className={styles["zen-hover-zone"]}
+                onMouseEnter={showHoverZone}
+                onMouseLeave={hideHoverZone}
+              />
+            </>
+          )}
 
           <div className={styles["window-content"]} id={SlotID.AppBody}>
             <Routes>

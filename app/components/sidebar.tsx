@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useMemo, useState, Fragment } from "react";
 import styles from "./home.module.scss";
 
 import { IconButton } from "./button";
+import buttonStyles from "./button.module.scss";
 import SettingsIcon from "../icons/settings.svg";
 import GithubIcon from "../icons/github.svg";
 // import ChatGptIcon from "../icons/chatgpt.svg";
@@ -212,8 +213,11 @@ export function SideBarHeader(props: {
   logo?: React.ReactNode;
   children?: React.ReactNode;
   shouldNarrow?: boolean;
+  onLogoDoubleClick?: () => void;
 }) {
-  const { title, subTitle, logo, children, shouldNarrow } = props;
+  const { title, subTitle, logo, children, shouldNarrow, onLogoDoubleClick } =
+    props;
+  const [showLogoTip, setShowLogoTip] = useState(false);
   const renderSubTitle = (text: string) => {
     return parse(text);
   };
@@ -233,7 +237,21 @@ export function SideBarHeader(props: {
             {typeof subTitle === "string" ? renderSubTitle(subTitle) : subTitle}
           </div>
         </div>
-        <div className={styles["sidebar-logo"] + " no-dark"}>{logo}</div>
+        <div
+          className={styles["sidebar-logo"] + " no-dark"}
+          onDoubleClick={onLogoDoubleClick}
+          onMouseEnter={() => setShowLogoTip(true)}
+          onMouseLeave={() => setShowLogoTip(false)}
+        >
+          {logo}
+          {showLogoTip && (
+            <div
+              className={`${buttonStyles["icon-button-tooltip"]} ${buttonStyles["tooltip-right"]}`}
+            >
+              {Locale.Chat.Actions.EnterZenHint}
+            </div>
+          )}
+        </div>
       </div>
       {children}
     </Fragment>
@@ -296,6 +314,7 @@ export function SideBar(props: { className?: string }) {
         subTitle={sidebarSubTitle}
         logo={<AILogoIcon />}
         shouldNarrow={shouldNarrow}
+        onLogoDoubleClick={() => config.update((c) => (c.zenMode = true))}
       >
         <div className={styles["sidebar-header-bar"]}>
           <IconButton

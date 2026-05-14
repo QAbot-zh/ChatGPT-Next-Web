@@ -48,6 +48,7 @@ export const DEFAULT_CONFIG = {
   sendPreviewBubble: true,
   enableAutoGenerateTitle: true,
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+  zenMode: false,
 
   enableArtifacts: true, // show artifacts config
 

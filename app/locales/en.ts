@@ -71,6 +71,9 @@ const en: LocaleType = {
       Cancel: "Cancel",
       FullScreen: "FullScreen",
       ExitFullScreen: "Exit FullScreen",
+      EnterZen: "Zen Mode",
+      ExitZen: "Exit Zen Mode",
+      EnterZenHint: "Double-click to enter Zen Mode",
       RefreshTitle: "Refresh Title",
       RefreshToast: "Title refresh request sent",
       FailTitleToast:
