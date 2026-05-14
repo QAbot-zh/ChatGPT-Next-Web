@@ -399,6 +399,159 @@
   border-radius: 8px;
 }
 
+.custom-css-cloud {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.custom-css-cloud-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.custom-css-cloud-label {
+  color: var(--black);
+  font-size: var(--text-base);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.custom-css-cloud-native-select {
+  flex: 0 1 auto;
+  min-width: 300px;
+  max-width: 350px;
+  height: 36px;
+  padding: 0 10px;
+  border: var(--border-in-light);
+  border-radius: 8px;
+  background-color: var(--white);
+  color: var(--black);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+
+  &:focus {
+    border-color: var(--primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+}
+
+.custom-css-color-swatches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.custom-css-color-swatch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--black);
+  font-size: var(--text-xs);
+  font-style: normal;
+  white-space: nowrap;
+
+  span {
+    width: 20px;
+    height: 20px;
+    border: var(--border-in-light);
+    border-radius: 5px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  }
+
+  em {
+    font-style: normal;
+  }
+}
+
+.custom-css-theme-mode {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: var(--border-in-light);
+  border-radius: 8px;
+  background-color: var(--white);
+
+  button {
+    min-width: 40px;
+    height: 24px;
+    padding: 0 6px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--black);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    font-family: inherit;
+  }
+
+  .custom-css-theme-mode-active {
+    background-color: var(--primary);
+    color: var(--white);
+  }
+}
+
+.custom-css-cloud-meta {
+  max-height: 72px;
+  overflow: auto;
+  padding: 10px;
+  border: var(--border-in-light);
+  border-radius: 8px;
+  background-color: var(--second);
+}
+
+.custom-css-cloud-description,
+.custom-css-cloud-status,
+.custom-css-cloud-error {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.custom-css-cloud-description {
+  color: var(--black);
+}
+
+.custom-css-cloud-status {
+  color: var(--primary);
+}
+
+.custom-css-cloud-error {
+  color: #d33;
+}
+
+.custom-css-modal-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-css-modal {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+
+  .edit-prompt-content {
+    flex: 1;
+    height: clamp(180px, 28vh, 300px);
+    min-height: 160px;
+    resize: vertical;
+  }
+}
+
 .custom-css-actions {
   display: flex;
   justify-content: space-between;

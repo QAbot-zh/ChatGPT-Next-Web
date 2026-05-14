@@ -140,6 +140,8 @@ interface ModalProps {
   children?: any;
   actions?: React.ReactNode[];
   defaultMax?: boolean;
+  contentClassName?: string;
+  contentStyle?: React.CSSProperties;
   footer?: React.ReactNode;
   onClose?: () => void;
   disableClose?: boolean;
@@ -190,7 +192,12 @@ export function Modal(props: ModalProps) {
         </div>
       </div>
 
-      <div className={styles["modal-content"]}>{props.children}</div>
+      <div
+        className={`${styles["modal-content"]} ${props.contentClassName ?? ""}`}
+        style={props.contentStyle}
+      >
+        {props.children}
+      </div>
 
       <div className={styles["modal-footer"]}>
         {props.footer}

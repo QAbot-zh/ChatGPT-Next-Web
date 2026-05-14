@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
 import styles from "./settings.module.scss";
 import { useCustomCssStore } from "../store/customCss";
@@ -66,7 +66,6 @@ import {
   ServiceProvider,
   SlotID,
   UPDATE_URL,
-  THEME_REPO_URL,
 } from "../constant";
 import { Prompt, SearchService, usePromptStore } from "../store/prompt";
 import {
@@ -84,6 +83,240 @@ import { useMaskStore } from "../store/mask";
 import { ProviderType } from "../utils/cloud";
 import { TTSConfigList } from "./tts-config";
 
+const CLOUD_THEME_BASE_URL = "https://nextchat-theme.pages.dev";
+const CLOUD_THEME_LIST_URL = `${CLOUD_THEME_BASE_URL}/api/themes.json`;
+const CUSTOM_CSS_PREVIEW_STYLE_ID = "custom-css-preview";
+
+type CloudTheme = {
+  name: string;
+  slug: string;
+  description?: string;
+  cssUrl: string;
+  jsonUrl: string;
+};
+
+type CloudThemeColors = {
+  primary?: string;
+  second?: string;
+};
+
+type CloudThemeMode = "light" | "dark";
+
+const EMPTY_CLOUD_THEME_COLORS = {
+  light: {},
+  dark: {},
+} satisfies Record<CloudThemeMode, CloudThemeColors>;
+
+function pickString(...values: unknown[]) {
+  const value = values.find((item) => typeof item === "string" && item.trim());
+  return typeof value === "string" ? value : undefined;
+}
+
+function slugifyThemeName(name: string) {
+  return name.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+function resolveCloudThemeUrl(url?: string) {
+  if (!url) return undefined;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${CLOUD_THEME_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+function normalizeCloudTheme(item: unknown): CloudTheme | null {
+  if (!item || typeof item !== "object") return null;
+
+  const theme = item as Record<string, any>;
+  const links =
+    theme.links && typeof theme.links === "object"
+      ? (theme.links as Record<string, unknown>)
+      : {};
+  const assets =
+    theme.assets && typeof theme.assets === "object"
+      ? (theme.assets as Record<string, unknown>)
+      : {};
+  const resources =
+    theme.resources && typeof theme.resources === "object"
+      ? (theme.resources as Record<string, unknown>)
+      : {};
+
+  const name = pickString(theme.name, theme.title, theme.label);
+  const slug =
+    pickString(theme.slug, theme.id) ?? (name && slugifyThemeName(name));
+
+  if (!slug) return null;
+
+  const cssPath = pickString(
+    theme.css,
+    theme.cssUrl,
+    theme.css_url,
+    theme.href,
+    links.css,
+    assets.css,
+    resources.css,
+  );
+  const jsonPath = pickString(
+    theme.json,
+    theme.jsonUrl,
+    theme.json_url,
+    links.json,
+    assets.json,
+    resources.json,
+  );
+
+  return {
+    name: name ?? slug,
+    slug,
+    description: pickString(theme.description, theme.desc, theme.summary),
+    cssUrl:
+      resolveCloudThemeUrl(cssPath) ??
+      `${CLOUD_THEME_BASE_URL}/api/themes/${slug}.css`,
+    jsonUrl:
+      resolveCloudThemeUrl(jsonPath) ??
+      `${CLOUD_THEME_BASE_URL}/api/themes/${slug}.json`,
+  };
+}
+
+function normalizeCloudThemeList(data: unknown) {
+  let list: unknown[] = [];
+
+  if (Array.isArray(data)) {
+    list = data;
+  } else if (data && typeof data === "object") {
+    const record = data as Record<string, unknown>;
+    if (Array.isArray(record.themes)) {
+      list = record.themes;
+    } else if (Array.isArray(record.data)) {
+      list = record.data;
+    } else {
+      list = Object.entries(record).map(([slug, value]) =>
+        value && typeof value === "object" ? { slug, ...value } : value,
+      );
+    }
+  }
+
+  return list
+    .map(normalizeCloudTheme)
+    .filter((theme): theme is CloudTheme => !!theme);
+}
+
+function applyCustomCssPreview(content: string) {
+  if (typeof document === "undefined") return;
+
+  let style = document.getElementById(CUSTOM_CSS_PREVIEW_STYLE_ID);
+
+  if (!content.trim()) {
+    style?.remove();
+    return;
+  }
+
+  if (!style) {
+    style = document.createElement("style");
+    style.id = CUSTOM_CSS_PREVIEW_STYLE_ID;
+    style.setAttribute("data-custom-css-preview", "true");
+    (document.body ?? document.head).appendChild(style);
+  }
+
+  style.textContent = content;
+}
+
+function clearCustomCssPreview() {
+  if (typeof document === "undefined") return;
+  document.getElementById(CUSTOM_CSS_PREVIEW_STYLE_ID)?.remove();
+}
+
+function normalizeCssVariableName(name: string) {
+  return name.replace(/^--/, "").trim().toLowerCase();
+}
+
+function pickThemeColorFromRecord(
+  value: unknown,
+  names: string[],
+): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+
+  const normalizedNames = names.map(normalizeCssVariableName);
+
+  for (const [key, rawValue] of Object.entries(value)) {
+    if (!normalizedNames.includes(normalizeCssVariableName(key))) continue;
+    if (typeof rawValue !== "string") continue;
+
+    const color = rawValue.trim().replace(/;$/, "");
+    if (color) return color;
+  }
+}
+
+function extractThemeColorsFromRecord(value: unknown): CloudThemeColors {
+  return {
+    primary: pickThemeColorFromRecord(value, ["--primary", "primary"]),
+    second: pickThemeColorFromRecord(value, [
+      "--second",
+      "second",
+      "--secondary",
+      "secondary",
+    ]),
+  };
+}
+
+function extractThemeColorsFromThemeData(
+  data: unknown,
+  mode: CloudThemeMode,
+): CloudThemeColors {
+  if (!data || typeof data !== "object") return {};
+
+  const record = data as Record<string, any>;
+  const candidates = [
+    record[mode],
+    record[mode]?.variables,
+    record[mode]?.vars,
+    record[mode]?.cssVariables,
+    record[mode]?.colors,
+    record.variables?.[mode],
+    record.vars?.[mode],
+    record.cssVariables?.[mode],
+    record.colors?.[mode],
+    record.variables,
+    record.vars,
+    record.cssVariables,
+    record.colors,
+    record,
+  ];
+
+  for (const candidate of candidates) {
+    const colors = extractThemeColorsFromRecord(candidate);
+    if (colors.primary || colors.second) {
+      return colors;
+    }
+  }
+
+  return {};
+}
+
+function extractThemeColorsFromCss(css: string): CloudThemeColors {
+  const pickCssVariable = (names: string[]) => {
+    for (const name of names) {
+      const match = css.match(new RegExp(`${name}\\s*:\\s*([^;]+);`, "i"));
+      if (match?.[1]?.trim()) {
+        return match[1].trim();
+      }
+    }
+  };
+
+  return {
+    primary: pickCssVariable(["--primary"]),
+    second: pickCssVariable(["--second", "--secondary"]),
+  };
+}
+
+function mergeThemeColors(
+  fallback: CloudThemeColors,
+  override: CloudThemeColors,
+): CloudThemeColors {
+  return {
+    primary: override.primary ?? fallback.primary,
+    second: override.second ?? fallback.second,
+  };
+}
+
 // 设置页面的分类枚举
 enum SettingsTab {
   General = "general",
@@ -96,34 +329,226 @@ enum SettingsTab {
 function CustomCssModal(props: { onClose?: () => void }) {
   const customCss = useCustomCssStore();
   const [cssContent, setCssContent] = useState(customCss.content);
+  const [cloudThemes, setCloudThemes] = useState<CloudTheme[]>([]);
+  const [cloudThemeLoading, setCloudThemeLoading] = useState(false);
+  const [cloudThemeCssLoading, setCloudThemeCssLoading] = useState(false);
+  const [cloudThemeError, setCloudThemeError] = useState("");
+  const [selectedCloudThemeSlug, setSelectedCloudThemeSlug] = useState("");
+  const [cloudThemeMode, setCloudThemeMode] = useState<CloudThemeMode>("light");
+  const [cloudThemeColors, setCloudThemeColors] = useState<
+    Record<CloudThemeMode, CloudThemeColors>
+  >(EMPTY_CLOUD_THEME_COLORS);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const themeCssRequestId = useRef(0);
+  const originalBodyThemeRef = useRef<string[] | null>(null);
+
+  const applyThemeModePreview = (mode: CloudThemeMode) => {
+    if (typeof document === "undefined") return;
+    if (originalBodyThemeRef.current === null) {
+      originalBodyThemeRef.current = ["dark", "light"].filter((cls) =>
+        document.body.classList.contains(cls),
+      );
+    }
+    document.body.classList.toggle("dark", mode === "dark");
+    document.body.classList.toggle("light", mode === "light");
+  };
+
+  const restoreOriginalTheme = () => {
+    if (typeof document === "undefined") return;
+    const snapshot = originalBodyThemeRef.current;
+    if (snapshot === null) return;
+    document.body.classList.remove("dark");
+    document.body.classList.remove("light");
+    snapshot.forEach((cls) => document.body.classList.add(cls));
+    originalBodyThemeRef.current = null;
+  };
+
+  const selectedCloudTheme = useMemo(
+    () => cloudThemes.find((theme) => theme.slug === selectedCloudThemeSlug),
+    [cloudThemes, selectedCloudThemeSlug],
+  );
+  const activeCloudThemeColors = cloudThemeColors[cloudThemeMode];
+  const hasCloudThemeColors = !!(
+    cloudThemeColors.light.primary ||
+    cloudThemeColors.light.second ||
+    cloudThemeColors.dark.primary ||
+    cloudThemeColors.dark.second
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadCloudThemes() {
+      setCloudThemeLoading(true);
+      setCloudThemeError("");
+
+      try {
+        const response = await fetch(CLOUD_THEME_LIST_URL, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (controller.signal.aborted) return;
+
+        setCloudThemes(normalizeCloudThemeList(data));
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("[CustomCss] failed to load cloud themes", error);
+        setCloudThemeError(Locale.Settings.CustomCSS.CloudThemeLoadFailed);
+      } finally {
+        if (!controller.signal.aborted) {
+          setCloudThemeLoading(false);
+        }
+      }
+    }
+
+    loadCloudThemes();
+
+    return () => {
+      controller.abort();
+      clearCustomCssPreview();
+      restoreOriginalTheme();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isPreviewing) {
+      applyCustomCssPreview(cssContent);
+    }
+  }, [cssContent, isPreviewing]);
 
   const handleSave = () => {
+    const trimmed = cssContent.trim();
     customCss.update((state) => {
       state.content = cssContent;
+      state.enabled = trimmed.length > 0 ? true : state.enabled;
       state.lastUpdated = Date.now();
     });
+    clearCustomCssPreview();
+    restoreOriginalTheme();
     props.onClose?.();
   };
-  const openThemeRepo = () => {
-    window.open(THEME_REPO_URL, "_blank", "noopener");
+
+  const handleClose = () => {
+    clearCustomCssPreview();
+    restoreOriginalTheme();
+    props.onClose?.();
+  };
+
+  const handlePreview = () => {
+    if (isPreviewing) {
+      clearCustomCssPreview();
+      restoreOriginalTheme();
+      setIsPreviewing(false);
+      showToast(Locale.Settings.CustomCSS.PreviewCancelled);
+      return;
+    }
+
+    if (!cssContent.trim()) {
+      clearCustomCssPreview();
+      restoreOriginalTheme();
+      setIsPreviewing(false);
+      showToast(Locale.Settings.CustomCSS.PreviewEmpty);
+      return;
+    }
+
+    applyCustomCssPreview(cssContent);
+    setIsPreviewing(true);
+    showToast(Locale.Settings.CustomCSS.PreviewApplied);
+  };
+
+  const handleCloudThemeChange = async (
+    e: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const slug = e.currentTarget.value;
+    setSelectedCloudThemeSlug(slug);
+    setCloudThemeError("");
+    setCloudThemeMode("light");
+    setCloudThemeColors(EMPTY_CLOUD_THEME_COLORS);
+
+    const theme = cloudThemes.find((item) => item.slug === slug);
+    if (!theme) {
+      themeCssRequestId.current += 1;
+      setCloudThemeCssLoading(false);
+      setCssContent(customCss.content);
+      clearCustomCssPreview();
+      restoreOriginalTheme();
+      setIsPreviewing(false);
+      showToast(Locale.Settings.CustomCSS.LocalThemeRestored);
+      return;
+    }
+
+    const requestId = themeCssRequestId.current + 1;
+    themeCssRequestId.current = requestId;
+    setCloudThemeCssLoading(true);
+
+    try {
+      const response = await fetch(theme.cssUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const css = await response.text();
+      const themeData = await fetch(theme.jsonUrl)
+        .then((response) => (response.ok ? response.json() : undefined))
+        .catch(() => undefined);
+      if (themeCssRequestId.current !== requestId) return;
+
+      setCssContent(css);
+      setCloudThemeColors({
+        light: mergeThemeColors(
+          extractThemeColorsFromCss(css),
+          extractThemeColorsFromThemeData(themeData, "light"),
+        ),
+        dark: mergeThemeColors(
+          extractThemeColorsFromCss(css),
+          extractThemeColorsFromThemeData(themeData, "dark"),
+        ),
+      });
+      applyCustomCssPreview(css);
+      applyThemeModePreview("light");
+      setIsPreviewing(true);
+      showToast(Locale.Settings.CustomCSS.ThemeLoaded(theme.name));
+    } catch (error) {
+      if (themeCssRequestId.current !== requestId) return;
+
+      console.error("[CustomCss] failed to load cloud theme css", error);
+      setCloudThemeError(Locale.Settings.CustomCSS.ThemeLoadFailed(theme.name));
+      showToast(Locale.Settings.CustomCSS.ThemeLoadFailed(theme.name));
+    } finally {
+      if (themeCssRequestId.current === requestId) {
+        setCloudThemeCssLoading(false);
+      }
+    }
   };
 
   return (
     <div className="modal-mask">
       <Modal
         title={Locale.Settings.CustomCSS.Title}
-        onClose={() => props.onClose?.()}
+        onClose={handleClose}
+        contentClassName={styles["custom-css-modal-content"]}
+        contentStyle={{ maxHeight: "min(60vh, 560px)" }}
         actions={[
           <IconButton
-            key="theme-repo"
-            text={Locale.Settings.CustomCSS.More}
-            onClick={openThemeRepo}
+            key="preview"
+            text={
+              isPreviewing
+                ? Locale.Settings.CustomCSS.Previewing
+                : Locale.Settings.CustomCSS.Preview
+            }
+            onClick={handlePreview}
+            type={isPreviewing ? "primary" : undefined}
             bordered
           />,
           <IconButton
             key="cancel"
             text={Locale.UI.Cancel}
-            onClick={props.onClose}
+            onClick={handleClose}
             bordered
           />,
           <IconButton
@@ -134,9 +559,107 @@ function CustomCssModal(props: { onClose?: () => void }) {
           />,
         ]}
       >
-        <div className={styles["edit-prompt-modal"]}>
-          <div className={styles["custom-css-hint"]}>
-            {Locale.Settings.CustomCSS.Hint}
+        <div
+          className={`${styles["edit-prompt-modal"]} ${styles["custom-css-modal"]}`}
+        >
+          <div className={styles["custom-css-cloud"]}>
+            <div className={styles["custom-css-cloud-row"]}>
+              <label
+                className={styles["custom-css-cloud-label"]}
+                htmlFor="custom-css-cloud-theme"
+              >
+                {Locale.Settings.CustomCSS.CloudTheme}
+              </label>
+              <select
+                id="custom-css-cloud-theme"
+                value={selectedCloudThemeSlug}
+                onChange={handleCloudThemeChange}
+                disabled={cloudThemeLoading || cloudThemeCssLoading}
+                className={styles["custom-css-cloud-native-select"]}
+              >
+                <option value="">
+                  {cloudThemeLoading
+                    ? Locale.Settings.CustomCSS.CloudThemeLoading
+                    : Locale.Settings.CustomCSS.LocalThemeOption}
+                </option>
+                {cloudThemes.map((theme) => (
+                  <option value={theme.slug} key={theme.slug}>
+                    {theme.name}
+                  </option>
+                ))}
+              </select>
+
+              {hasCloudThemeColors ? (
+                <div className={styles["custom-css-color-swatches"]}>
+                  {activeCloudThemeColors.primary ? (
+                    <div
+                      className={styles["custom-css-color-swatch"]}
+                      title={`${Locale.Settings.CustomCSS.PrimaryColor}: ${activeCloudThemeColors.primary}`}
+                    >
+                      <span
+                        style={{
+                          backgroundColor: activeCloudThemeColors.primary,
+                        }}
+                      />
+                      <em>{Locale.Settings.CustomCSS.PrimaryColor}</em>
+                    </div>
+                  ) : null}
+                  {activeCloudThemeColors.second ? (
+                    <div
+                      className={styles["custom-css-color-swatch"]}
+                      title={`${Locale.Settings.CustomCSS.SecondaryColor}: ${activeCloudThemeColors.second}`}
+                    >
+                      <span
+                        style={{
+                          backgroundColor: activeCloudThemeColors.second,
+                        }}
+                      />
+                      <em>{Locale.Settings.CustomCSS.SecondaryColor}</em>
+                    </div>
+                  ) : null}
+                  <div className={styles["custom-css-theme-mode"]}>
+                    {(["light", "dark"] as CloudThemeMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className={
+                          cloudThemeMode === mode
+                            ? styles["custom-css-theme-mode-active"]
+                            : ""
+                        }
+                        onClick={() => {
+                          setCloudThemeMode(mode);
+                          applyThemeModePreview(mode);
+                        }}
+                      >
+                        {mode === "light"
+                          ? Locale.Settings.CustomCSS.LightMode
+                          : Locale.Settings.CustomCSS.DarkMode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {selectedCloudTheme?.description ? (
+              <div className={styles["custom-css-cloud-meta"]}>
+                <div className={styles["custom-css-cloud-description"]}>
+                  {selectedCloudTheme.description}
+                </div>
+              </div>
+            ) : null}
+
+            {cloudThemeCssLoading ? (
+              <div className={styles["custom-css-cloud-status"]}>
+                {Locale.Settings.CustomCSS.CloudThemeCssLoading}
+              </div>
+            ) : null}
+            {cloudThemeError ? (
+              <div className={styles["custom-css-cloud-error"]}>
+                {cloudThemeError}
+              </div>
+            ) : null}
           </div>
 
           <Input
