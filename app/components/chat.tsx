@@ -1,4 +1,5 @@
 import { useDebouncedCallback } from "use-debounce";
+import { createPortal } from "react-dom";
 import React, {
   useState,
   useRef,
@@ -285,7 +286,9 @@ export function SessionConfigModel(props: { onClose: () => void }) {
   const maskStore = useMaskStore();
   const navigate = useNavigate();
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="modal-mask">
       <Modal
         title={Locale.Context.Edit}
@@ -343,7 +346,8 @@ export function SessionConfigModel(props: { onClose: () => void }) {
           }
         ></MaskConfig>
       </Modal>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
