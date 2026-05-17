@@ -1365,12 +1365,15 @@ function autoFixLatexDisplayMode(text: string): string {
 
 function escapeBrackets(text: string) {
   // 代码块与行内代码已由调用方的 protector 处理，这里只需匹配 LaTeX 括号
-  // 转换时 trim 内部空格，使生成的 $..$ / $$..$$ 符合 GFM math 定界符规则
-  // （$ 内侧紧贴空格不算合法定界符）
+  // - \(..\) → $..$：行内公式，内侧 trim 避免紧贴空格（GFM 不识别 "$ x $"）
+  // - \[..\] → $$..$$：块级公式，必须让 $$ 独占一行且前后留空行，
+  //   否则 remark-math 5.x 的 mathFlow 会把首行 `$$xxx` 当作围栏 + info string，
+  //   把第一行整段（含 \begin{vmatrix}）吞掉，再因找不到独占一行的关围栏
+  //   一路吃到 EOF，导致整篇 KaTeX 解析错误。
   const pattern = /\\\[([\s\S]*?[^\\])\\\]|\\\((.*?)\\\)/g;
   return text.replace(pattern, (match, squareBracket, roundBracket) => {
     if (squareBracket) {
-      return `$$${squareBracket.trim()}$$`;
+      return `\n\n$$\n${squareBracket.trim()}\n$$\n\n`;
     } else if (roundBracket) {
       return `$${roundBracket.trim()}$`;
     }
@@ -1916,8 +1919,12 @@ function FormulaPreviewModal(props: {
 // 注：保留 tagName 为 span，避免 <div> 嵌入 <p> 触发 React hydration 警告
 // （rehype-katex 按 className 判断 displayMode，不限制 tagName；
 //  KaTeX 在 displayMode 下输出的也是 <span class="katex-display">）。
+// 触发 display 模式的条件：
+// 1) 已知必须 display 才能正常排版的环境（含 matrix 家族 / cases / aligned / array 等）
+// 2) 包含 LaTeX 行分隔符 `\\`（inline 模式下 `\\` 是语法错误，凡出现即按 display 处理）
+//    用 (?!\\) 排除 `\\\` 这种被进一步转义的情况，避免误判。
 const REQUIRES_DISPLAY_MATH =
-  /\\begin\{(?:equation|equation\*|align|align\*|gather|gather\*|split)\}/;
+  /\\begin\{(?:equation|equation\*|align|align\*|gather|gather\*|matrix|pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|smallmatrix|split|cases|aligned|array)\}|\\\\(?!\\)/;
 
 function rehypeFixDisplayMath() {
   function getText(node: any): string {
