@@ -208,17 +208,23 @@ export class ChatGPTApi implements LLMApi {
     };
     richMessage.reasoning_content =
       res.choices?.at(0)?.message?.reasoning_content ||
-      res.choices?.at(0)?.message?.reasoning;
-    const content = res.choices?.at(0)?.message?.content;
+      res.choices?.at(0)?.message?.reasoning ||
+      "";
+    let content: string | undefined = res.choices?.at(0)?.message?.content;
+
+    // 非流式下,reasoning_content 字段存在即 ReasoningType;
+    // 否则若 content 头部含 <think>,识别为 ThinkType 并拆出
     if (richMessage.reasoning_content) {
-      richMessage.content =
-        "<think>\n" +
-        richMessage.reasoning_content +
-        "\n</think>\n\n" +
-        content;
-    } else {
-      richMessage.content = content ?? res;
+      richMessage.thinking_type = ThinkingType.ReasoningType;
+    } else if (typeof content === "string" && content.startsWith("<think>")) {
+      const m = content.match(/^<think>\n?([\s\S]*?)\n?<\/think>\n*/);
+      if (m) {
+        richMessage.reasoning_content = m[1];
+        content = content.slice(m[0].length);
+        richMessage.thinking_type = ThinkingType.ThinkType;
+      }
     }
+    richMessage.content = content ?? (richMessage.reasoning_content ? "" : res);
     let prompt_tokens = res.usage?.prompt_tokens;
     let completion_tokens = res.usage?.completion_tokens;
     let total_tokens = res.usage?.total_tokens;
@@ -300,8 +306,12 @@ export class ChatGPTApi implements LLMApi {
     // 检测是否为图像生成模型
     const isImageModel = isImageGenerationModel(model_name);
 
-    // 保留推理细节回传，Interleaved thinking 实现 M2 完整性能：https://platform.minimaxi.com/docs/guides/text-m2-function-call
-    const retainReasoningDetails = model_name.includes("minimax-m2");
+    // 是否保留推理细节回传，统一由 session 「回传思考内容」开关控制
+    const retainReasoningDetails = !!(
+      useChatStore.getState().currentSession().mask.modelConfig
+        .sendReasoningContent ??
+      useAppConfig.getState().modelConfig.sendReasoningContent
+    );
 
     // const isThinking =
     //   model_name.includes("thinking") || isO1 || isO3 || isDeepseekReasoner;
@@ -313,8 +323,14 @@ export class ChatGPTApi implements LLMApi {
         retainReasoningDetails,
       );
       // 对于O1/O3模型和图像生成模型，移除system消息
-      if (!((isO1orO3 || isImageModel) && v.role === "system"))
-        messages.push({ role: v.role, content });
+      if (!((isO1orO3 || isImageModel) && v.role === "system")) {
+        const outMsg: any = { role: v.role, content };
+        // 透传 ReasoningType peer 字段(由 chat.ts getMessagesWithMemory 决定是否附加)
+        if (v.reasoning_content) {
+          outMsg.reasoning_content = v.reasoning_content;
+        }
+        messages.push(outMsg);
+      }
     }
 
     // 合并连续的 system 消息
@@ -530,6 +546,8 @@ export class ChatGPTApi implements LLMApi {
       if (shouldStream) {
         let responseText = "";
         let remainText = "";
+        let reasoningResponseText = "";
+        let reasoningRemainText = "";
         let searchContent = "";
         let thinkContent = "";
         let completionContent = "";
@@ -556,19 +574,36 @@ export class ChatGPTApi implements LLMApi {
         function animateResponseText() {
           if (finished || controller.signal.aborted) {
             responseText += remainText;
+            reasoningResponseText += reasoningRemainText;
             console.log("[Response Animation] finished");
-            if (responseText?.length === 0) {
+            if (
+              responseText?.length === 0 &&
+              reasoningResponseText?.length === 0
+            ) {
               options.onError?.(new Error("empty response from server"));
             }
             return;
           }
 
-          if (remainText.length > 0) {
+          let fetchText = "";
+          let reasoningFetchText = "";
+          if (reasoningRemainText.length > 0) {
+            // 思考缓冲未排空前不消化正文，保持「先思考后正文」的串行顺序
+            const fetchCount = Math.max(
+              1,
+              Math.round(reasoningRemainText.length / 60),
+            );
+            reasoningFetchText = reasoningRemainText.slice(0, fetchCount);
+            reasoningResponseText += reasoningFetchText;
+            reasoningRemainText = reasoningRemainText.slice(fetchCount);
+          } else if (remainText.length > 0) {
             const fetchCount = Math.max(1, Math.round(remainText.length / 60));
-            const fetchText = remainText.slice(0, fetchCount);
+            fetchText = remainText.slice(0, fetchCount);
             responseText += fetchText;
             remainText = remainText.slice(fetchCount);
-            options.onUpdate?.(responseText, fetchText);
+          }
+          if (fetchText.length > 0 || reasoningFetchText.length > 0) {
+            options.onUpdate?.(responseText, fetchText, reasoningFetchText);
           }
 
           requestAnimationFrame(animateResponseText);
@@ -594,6 +629,23 @@ export class ChatGPTApi implements LLMApi {
 
             let full_reply = responseText + remainText + citationsContent;
             full_reply = wrapThinkingPart(full_reply);
+            let fullReasoning = reasoningResponseText + reasoningRemainText;
+
+            // 把 ThinkType / ReferenceType 经 wrapThinkingPart 标准化后产生的
+            // <think>...</think> 头部抽出，统一写入 reasoning_content
+            // ReasoningType 已通过独立字段累积，跳过避免重复
+            if (
+              thinkingType !== ThinkingType.ReasoningType &&
+              full_reply.startsWith("<think>")
+            ) {
+              const m = full_reply.match(
+                /^<think>\n?([\s\S]*?)\n?<\/think>\n*/,
+              );
+              if (m) {
+                fullReasoning = m[1];
+                full_reply = full_reply.slice(m[0].length);
+              }
+            }
 
             // 处理图片上传
             try {
@@ -612,6 +664,8 @@ export class ChatGPTApi implements LLMApi {
               completionTokens = estimateTokenLengthInLLM(full_reply);
             }
             richMessage.content = full_reply;
+            richMessage.reasoning_content = fullReasoning;
+            richMessage.thinking_type = thinkingType;
             richMessage.is_stream_request = true;
             richMessage.usage = {
               completion_tokens: completionTokens,
@@ -721,12 +775,7 @@ export class ChatGPTApi implements LLMApi {
               if (reasoning && reasoning.length > 0) {
                 // 存在非空的 reasoning_content => reasoningType
                 thinkingType = ThinkingType.ReasoningType;
-                if (!isInThinking) {
-                  isInThinking = true;
-                  remainText += "<think>\n" + reasoning;
-                } else {
-                  remainText += reasoning;
-                }
+                reasoningRemainText += reasoning;
                 isInThinking = true;
                 totalThinkingLatency =
                   Date.now() -
@@ -739,16 +788,14 @@ export class ChatGPTApi implements LLMApi {
                   isInThinking &&
                   thinkingType === ThinkingType.ReasoningType
                 ) {
-                  remainText += "\n</think>\n\n" + content;
                   isInThinking = false;
                   totalThinkingLatency =
                     Date.now() -
                     startRequestTime -
                     firstReplyLatency -
                     searchLatency;
-                } else {
-                  remainText += content;
                 }
+                remainText += content;
                 let response_content = (responseText + remainText).trimStart();
                 // 标记搜索状态
                 if (!searchLatency) {

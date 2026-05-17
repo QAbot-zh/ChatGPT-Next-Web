@@ -4,6 +4,7 @@ import {
   ModelProvider,
   ServiceProvider,
   REPO_URL,
+  ThinkingType,
 } from "../constant";
 import {
   ChatMessage,
@@ -48,6 +49,7 @@ export interface UploadFile {
 export interface RequestMessage {
   role: MessageRole;
   content: string | MultimodalContent[];
+  reasoning_content?: string;
 }
 
 export interface LLMConfig {
@@ -70,6 +72,7 @@ export interface SpeechOptions {
 export interface RichMessage {
   content: string;
   reasoning_content: string;
+  thinking_type?: ThinkingType;
   is_stream_request?: boolean;
   usage?: {
     prompt_tokens?: number;
@@ -86,7 +89,7 @@ export interface ChatOptions {
   config: LLMConfig;
   type?: "chat" | "topic" | "compress" | "translate" | "ocr" | "improve";
 
-  onUpdate?: (message: string, chunk: string) => void;
+  onUpdate?: (message: string, chunk: string, reasoningChunk?: string) => void;
   onFinish: (message: string | RichMessage, responseRes: Response) => void;
   onError?: (err: Error) => void;
   onController?: (controller: AbortController) => void;

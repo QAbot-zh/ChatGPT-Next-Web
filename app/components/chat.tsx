@@ -280,6 +280,38 @@ const Markdown = dynamic(async () => (await import("./markdown")).Markdown, {
 // 导入消息编辑上下文
 import { MessageEditContext } from "./markdown";
 
+function renderReasoningPreview(reasoning?: string) {
+  if (!reasoning) return null;
+  return (
+    <details
+      style={{
+        margin: "0 0 12px",
+        padding: "6px 10px",
+        borderRadius: 6,
+        background: "var(--gray)",
+        opacity: 0.85,
+        fontSize: 12,
+      }}
+    >
+      <summary style={{ cursor: "pointer", userSelect: "none" }}>
+        思考内容(只读,随消息保留)
+      </summary>
+      <pre
+        style={{
+          marginTop: 6,
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          maxHeight: 240,
+          overflowY: "auto",
+          fontFamily: "inherit",
+        }}
+      >
+        {reasoning}
+      </pre>
+    </details>
+  );
+}
+
 export function SessionConfigModel(props: { onClose: () => void }) {
   const chatStore = useChatStore();
   const session = chatStore.currentSession();
@@ -4425,10 +4457,14 @@ function ChatComponent() {
         ...session.mask.modelConfig,
         stream: true,
       },
-      onUpdate(content) {
+      onUpdate(content, _chunk, reasoningChunk) {
         newBotMessage.streaming = true;
         if (content) {
           newBotMessage.content = content;
+        }
+        if (reasoningChunk) {
+          newBotMessage.reasoning_content =
+            (newBotMessage.reasoning_content ?? "") + reasoningChunk;
         }
         chatStore.updateTargetSession(session, (session) => {
           session.messages = session.messages.concat();
@@ -4440,6 +4476,12 @@ function ChatComponent() {
           newBotMessage.content =
             typeof message === "string" ? message : message.content;
           if (typeof message !== "string") {
+            if (message.reasoning_content) {
+              newBotMessage.reasoning_content = message.reasoning_content;
+            }
+            if (message.thinking_type !== undefined) {
+              newBotMessage.thinking_type = message.thinking_type;
+            }
             if (!newBotMessage.statistic) {
               newBotMessage.statistic = {};
             }
@@ -4689,10 +4731,14 @@ function ChatComponent() {
     api.llm.chat({
       messages: sendMessages,
       config: secondaryFullConfig,
-      onUpdate(content) {
+      onUpdate(content, _chunk, reasoningChunk) {
         newBotMessage.streaming = true;
         if (content) {
           newBotMessage.content = content;
+        }
+        if (reasoningChunk) {
+          newBotMessage.reasoning_content =
+            (newBotMessage.reasoning_content ?? "") + reasoningChunk;
         }
         chatStore.updateTargetSession(session, (session) => {
           session.secondaryMessages = (
@@ -4705,6 +4751,14 @@ function ChatComponent() {
         if (message) {
           newBotMessage.content =
             typeof message === "string" ? message : message.content;
+          if (typeof message !== "string") {
+            if (message.reasoning_content) {
+              newBotMessage.reasoning_content = message.reasoning_content;
+            }
+            if (message.thinking_type !== undefined) {
+              newBotMessage.thinking_type = message.thinking_type;
+            }
+          }
         }
         newBotMessage.date = new Date().toLocaleString();
         chatStore.updateTargetSession(session, (session) => {
@@ -6308,6 +6362,9 @@ function ChatComponent() {
                                   Locale.Chat.Actions.Edit,
                                   getMessageTextContent(message),
                                   10,
+                                  renderReasoningPreview(
+                                    message.reasoning_content,
+                                  ),
                                 );
                                 // 检查原始消息是否包含多模态内容（图片或文件）
                                 const hasMultimodalContent =
@@ -6475,16 +6532,20 @@ function ChatComponent() {
                             key={message.streaming ? "loading" : "done"}
                             status={showTyping}
                             content={
-                              !message.streaming &&
-                              isThinkingModel(message.model)
+                              message.reasoning_content
+                                ? getMessageTextContent(message)
+                                : !message.streaming &&
+                                  isThinkingModel(message.model)
                                 ? wrapThinkingPart(
                                     getMessageTextContent(message),
                                   )
                                 : getMessageTextContent(message)
                             }
+                            reasoningContent={message.reasoning_content}
                             loading={
                               (message.preview || message.streaming) &&
                               message.content.length === 0 &&
+                              !message.reasoning_content &&
                               !isUser
                             }
                             onDoubleClickCapture={() => {
@@ -6775,6 +6836,9 @@ function ChatComponent() {
                                   Locale.Chat.Actions.Edit,
                                   getMessageTextContent(message),
                                   10,
+                                  renderReasoningPreview(
+                                    message.reasoning_content,
+                                  ),
                                 );
                                 // 检查原始消息是否包含多模态内容（图片或文件）
                                 const hasMultimodalContent =
@@ -6969,16 +7033,20 @@ function ChatComponent() {
                             key={message.streaming ? "loading" : "done"}
                             status={showTyping}
                             content={
-                              !message.streaming &&
-                              isThinkingModel(message.model)
+                              message.reasoning_content
+                                ? getMessageTextContent(message)
+                                : !message.streaming &&
+                                  isThinkingModel(message.model)
                                 ? wrapThinkingPart(
                                     getMessageTextContent(message),
                                   )
                                 : getMessageTextContent(message)
                             }
+                            reasoningContent={message.reasoning_content}
                             loading={
                               (message.preview || message.streaming) &&
                               message.content.length === 0 &&
+                              !message.reasoning_content &&
                               !isUser
                             }
                             // onContextMenu={(e) => onRightClick(e, message)}  //don't copy message to input area when right click

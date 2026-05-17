@@ -16,6 +16,7 @@ import {
   DEFAULT_SYSTEM_TEMPLATE,
   KnowledgeCutOffDate,
   StoreKey,
+  ThinkingType,
 } from "../constant";
 import type {
   ClientApi,
@@ -44,6 +45,8 @@ export type ChatMessage = RequestMessage & {
   date: string;
   streaming?: boolean;
   isError?: boolean;
+  reasoning_content?: string;
+  thinking_type?: ThinkingType;
   id: string;
   parentId?: string;
   childrenIds?: string[];
@@ -1407,10 +1410,14 @@ export const useChatStore = createPersistStore(
         api.llm.chat({
           messages: sendMessages,
           config: { ...modelConfig, stream: true },
-          onUpdate(message) {
+          onUpdate(message, _chunk, reasoningChunk) {
             botMessage.streaming = true;
             if (message) {
               botMessage.content = message;
+            }
+            if (reasoningChunk) {
+              botMessage.reasoning_content =
+                (botMessage.reasoning_content ?? "") + reasoningChunk;
             }
             get().updateCurrentSession((session) => {
               session.messages = session.messages.concat();
@@ -1422,6 +1429,12 @@ export const useChatStore = createPersistStore(
               botMessage.content =
                 typeof message === "string" ? message : message.content;
               if (typeof message !== "string") {
+                if (message.reasoning_content) {
+                  botMessage.reasoning_content = message.reasoning_content;
+                }
+                if (message.thinking_type !== undefined) {
+                  botMessage.thinking_type = message.thinking_type;
+                }
                 if (!botMessage.statistic) {
                   botMessage.statistic = {};
                 }
@@ -1527,10 +1540,14 @@ export const useChatStore = createPersistStore(
           secondaryApi.llm.chat({
             messages: secondarySendMessages,
             config: secondaryFullConfig,
-            onUpdate(message) {
+            onUpdate(message, _chunk, reasoningChunk) {
               botMsg.streaming = true;
               if (message) {
                 botMsg.content = message;
+              }
+              if (reasoningChunk) {
+                botMsg.reasoning_content =
+                  (botMsg.reasoning_content ?? "") + reasoningChunk;
               }
               get().updateCurrentSession((session) => {
                 session.secondaryMessages = (
@@ -1544,6 +1561,12 @@ export const useChatStore = createPersistStore(
                 botMsg.content =
                   typeof message === "string" ? message : message.content;
                 if (typeof message !== "string") {
+                  if (message.reasoning_content) {
+                    botMsg.reasoning_content = message.reasoning_content;
+                  }
+                  if (message.thinking_type !== undefined) {
+                    botMsg.thinking_type = message.thinking_type;
+                  }
                   if (!botMsg.statistic) {
                     botMsg.statistic = {};
                   }
@@ -1686,6 +1709,12 @@ export const useChatStore = createPersistStore(
 
         // get recent messages as much as possible
         const reversedRecentMessages = [];
+        // 优先用 session mask 自己的设置；未显式配置时回落到全局开关
+        const globalSendReasoning =
+          useAppConfig.getState().modelConfig.sendReasoningContent;
+        const sendReasoning = !!(
+          modelConfig.sendReasoningContent ?? globalSendReasoning
+        );
         for (
           let i = totalMessageCount - 1, tokenCount = 0;
           i >= contextStartIndex; // && tokenCount < maxTokenThreshold;
@@ -1696,6 +1725,44 @@ export const useChatStore = createPersistStore(
 
           // 如果消息包含引用字段，构建发送给 AI 的消息内容
           let msgContent = getMessageTextContent(msg);
+          let attachReasoning: string | undefined;
+          if (msg.role === "assistant") {
+            const reasoning = msg.reasoning_content;
+            if (!sendReasoning) {
+              // 新消息 content 已干净，跳过剥离；仅老消息走剥离
+              if (!reasoning) {
+                msgContent = getMessageTextContentWithoutThinking(msg);
+              }
+            } else if (reasoning) {
+              // reasoning 非空即新消息，content 即 body，无需再剥离
+              const body = msgContent;
+              switch (msg.thinking_type) {
+                case ThinkingType.ReasoningType:
+                  msgContent = body;
+                  attachReasoning = reasoning;
+                  break;
+                case ThinkingType.ReferenceType: {
+                  // reasoning_content 可能已带 > 前缀(来自 wrapThinkingPart 的标准化产物),
+                  // 不重复添加
+                  const alreadyQuoted = reasoning
+                    .split("\n")
+                    .every((line) => line === "" || line.startsWith(">"));
+                  const quoted = alreadyQuoted
+                    ? reasoning
+                    : reasoning
+                        .split("\n")
+                        .map((line) => `> ${line}`)
+                        .join("\n");
+                  msgContent = `${quoted}\n\n${body}`;
+                  break;
+                }
+                case ThinkingType.ThinkType:
+                case ThinkingType.MaybeNotThink:
+                default:
+                  msgContent = `<think>\n${reasoning}\n</think>\n\n${body}`;
+              }
+            }
+          }
           if (msg.quote) {
             const quotedText = msg.quote.text
               .split("\n")
@@ -1709,6 +1776,12 @@ export const useChatStore = createPersistStore(
             ...msg,
             content: msgContent,
           };
+          if (attachReasoning) {
+            sendMessage.reasoning_content = attachReasoning;
+          } else {
+            delete (sendMessage as any).reasoning_content;
+          }
+          delete (sendMessage as any).thinking_type;
           // 删除 quote 字段，因为已经合并到内容中了
           delete (sendMessage as any).quote;
 
@@ -2250,12 +2323,52 @@ export const useChatStore = createPersistStore(
 
         // 获取最近的消息
         const reversedRecentMessages: ChatMessage[] = [];
+        // 「回传思考内容」开关：副模型优先 secondaryModelConfig，再 primaryModelConfig，最后全局
+        const sendReasoning = !!(
+          (secondaryConfig as any)?.sendReasoningContent ??
+          primaryConfig.sendReasoningContent ??
+          useAppConfig.getState().modelConfig.sendReasoningContent
+        );
         for (let i = totalMessageCount - 1; i >= contextStartIndex; i -= 1) {
           const msg = messages[i];
           if (!msg || msg.isError) continue;
 
           // 处理引用字段
           let msgContent = getMessageTextContent(msg);
+          let attachReasoning: string | undefined;
+          if (msg.role === "assistant") {
+            const reasoning = msg.reasoning_content;
+            if (!sendReasoning) {
+              if (!reasoning) {
+                msgContent = getMessageTextContentWithoutThinking(msg);
+              }
+            } else if (reasoning) {
+              const body = msgContent;
+              switch (msg.thinking_type) {
+                case ThinkingType.ReasoningType:
+                  msgContent = body;
+                  attachReasoning = reasoning;
+                  break;
+                case ThinkingType.ReferenceType: {
+                  const alreadyQuoted = reasoning
+                    .split("\n")
+                    .every((line) => line === "" || line.startsWith(">"));
+                  const quoted = alreadyQuoted
+                    ? reasoning
+                    : reasoning
+                        .split("\n")
+                        .map((line) => `> ${line}`)
+                        .join("\n");
+                  msgContent = `${quoted}\n\n${body}`;
+                  break;
+                }
+                case ThinkingType.ThinkType:
+                case ThinkingType.MaybeNotThink:
+                default:
+                  msgContent = `<think>\n${reasoning}\n</think>\n\n${body}`;
+              }
+            }
+          }
           if (msg.quote) {
             const quotedText = msg.quote.text
               .split("\n")
@@ -2268,6 +2381,12 @@ export const useChatStore = createPersistStore(
             ...msg,
             content: msgContent,
           };
+          if (attachReasoning) {
+            sendMessage.reasoning_content = attachReasoning;
+          } else {
+            delete (sendMessage as any).reasoning_content;
+          }
+          delete (sendMessage as any).thinking_type;
           delete (sendMessage as any).quote;
 
           reversedRecentMessages.push(sendMessage);

@@ -96,6 +96,7 @@ export const DEFAULT_CONFIG = {
     ocrProviderName: "" as ServiceProvider,
     enableInjectSystemPrompts: true,
     enableStreamUsageOptions: false,
+    sendReasoningContent: false,
     template: config?.template ?? DEFAULT_INPUT_TEMPLATE,
     // 参数覆盖变量
     paramOverrideContent: "",

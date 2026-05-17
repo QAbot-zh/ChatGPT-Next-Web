@@ -521,6 +521,11 @@ const cn = {
       SubTitle:
         "强制给每次请求的消息列表开头添加一个优化输出内容格式的系统提示",
     },
+    SendReasoningContent: {
+      Title: "回传思考内容",
+      SubTitle:
+        "多轮对话向模型发送历史思考内容（主流推荐关闭，agent 场景推荐打开）",
+    },
     InputTemplate: {
       Title: "用户输入预处理",
       SubTitle: "用户最新的一条消息会填充到此模板",

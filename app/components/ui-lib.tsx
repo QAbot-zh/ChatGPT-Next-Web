@@ -646,7 +646,12 @@ function PromptInput(props: {
   );
 }
 
-export function showPrompt(content: any, value = "", rows = 3) {
+export function showPrompt(
+  content: any,
+  value = "",
+  rows = 3,
+  extra?: React.ReactNode,
+) {
   const div = document.createElement("div");
   div.className = "modal-mask";
   document.body.appendChild(div);
@@ -691,6 +696,7 @@ export function showPrompt(content: any, value = "", rows = 3) {
         ]}
         onClose={closeModal}
       >
+        {extra}
         <PromptInput
           onChange={(val) => (userInput = val)}
           value={value}

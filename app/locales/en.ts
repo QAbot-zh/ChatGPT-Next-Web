@@ -550,6 +550,11 @@ const en: LocaleType = {
       Title: "Inject System Prompts",
       SubTitle: "Inject a global system prompt for every request",
     },
+    SendReasoningContent: {
+      Title: "Send Reasoning Content",
+      SubTitle:
+        "Send historical reasoning to the model in multi-turn chat (off by default — recommended in agent scenarios)",
+    },
     InputTemplate: {
       Title: "Input Template",
       SubTitle: "Newest message will be filled to this template",

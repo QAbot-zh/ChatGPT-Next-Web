@@ -594,6 +594,23 @@ export function ModelConfigList(props: {
           </ListItem>
 
           <ListItem
+            title={Locale.Settings.SendReasoningContent.Title}
+            subTitle={Locale.Settings.SendReasoningContent.SubTitle}
+          >
+            <input
+              aria-label={Locale.Settings.SendReasoningContent.Title}
+              type="checkbox"
+              checked={!!props.modelConfig.sendReasoningContent}
+              onChange={(e) =>
+                props.updateConfig(
+                  (config) =>
+                    (config.sendReasoningContent = e.currentTarget.checked),
+                )
+              }
+            ></input>
+          </ListItem>
+
+          <ListItem
             title={Locale.Settings.InputTemplate.Title}
             subTitle={Locale.Settings.InputTemplate.SubTitle}
           >

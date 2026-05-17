@@ -1951,12 +1951,16 @@ function rehypeFixDisplayMath() {
 
 function R_MarkDownContent(props: {
   content: string;
+  reasoningContent?: string;
   searchingTime?: number;
   thinkingTime?: number;
   fontSize?: number;
   status?: boolean;
 }) {
   const isStreaming = !!props.status;
+  const hasSeparateReasoning =
+    typeof props.reasoningContent === "string" &&
+    props.reasoningContent.length > 0;
 
   const escapedContent = useMemo(() => {
     let content = props.content;
@@ -1988,14 +1992,30 @@ function R_MarkDownContent(props: {
       content,
       props.searchingTime,
     );
-    const { thinkText, remainText } = formatThinkText(
-      searchRemainText,
-      props.thinkingTime,
-    );
-    content = searchText + thinkText + remainText;
+    if (hasSeparateReasoning) {
+      // 推理已通过 reasoningContent 单独传入，正文不再扫描 <think>，避免误判
+      const { thinkText } = formatThinkText(
+        `<think>\n${props.reasoningContent}\n</think>`,
+        props.thinkingTime,
+      );
+      content = searchText + thinkText + "\n\n" + searchRemainText;
+    } else {
+      const { thinkText, remainText } = formatThinkText(
+        searchRemainText,
+        props.thinkingTime,
+      );
+      content = searchText + thinkText + remainText;
+    }
 
     return tryWrapHtmlCode(content);
-  }, [props.content, props.searchingTime, props.thinkingTime, isStreaming]);
+  }, [
+    props.content,
+    props.reasoningContent,
+    props.searchingTime,
+    props.thinkingTime,
+    isStreaming,
+    hasSeparateReasoning,
+  ]);
 
   // 流式期间也启用公式渲染（未闭合的公式已被转义）
   const remarkPlugins = useMemo(
@@ -2123,6 +2143,7 @@ export const MarkdownContent = React.memo(R_MarkDownContent);
 export function Markdown(
   props: {
     content: string;
+    reasoningContent?: string;
     loading?: boolean;
     fontSize?: number;
     parentRef?: RefObject<HTMLDivElement>;
@@ -2211,6 +2232,7 @@ export function Markdown(
       ) : (
         <MarkdownContent
           content={props.content}
+          reasoningContent={props.reasoningContent}
           searchingTime={props.searchingTime}
           thinkingTime={props.thinkingTime}
           fontSize={props.fontSize}

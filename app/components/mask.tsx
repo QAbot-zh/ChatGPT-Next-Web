@@ -262,60 +262,92 @@ function ContextPromptItem(props: {
   remove: () => void;
 }) {
   const [focusingInput, setFocusingInput] = useState(false);
+  const reasoning =
+    props.prompt.role === "assistant" ? props.prompt.reasoning_content : "";
 
   return (
-    <div className={chatStyle["context-prompt-row"]}>
-      {!focusingInput && (
-        <>
-          <div className={chatStyle["context-drag"]}>
-            <DragIcon />
-          </div>
-          <Select
-            value={props.prompt.role}
-            className={chatStyle["context-role"]}
-            onChange={(e) =>
-              props.update({
-                ...props.prompt,
-                role: e.target.value as any,
-              })
-            }
-          >
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </Select>
-        </>
-      )}
-      <Input
-        value={getMessageTextContent(props.prompt)}
-        type="text"
-        className={chatStyle["context-content"]}
-        rows={focusingInput ? 5 : 1}
-        onFocus={() => setFocusingInput(true)}
-        onBlur={() => {
-          setFocusingInput(false);
-          // If the selection is not removed when the user loses focus, some
-          // extensions like "Translate" will always display a floating bar
-          window?.getSelection()?.removeAllRanges();
-        }}
-        onInput={(e) =>
-          props.update({
-            ...props.prompt,
-            content: e.currentTarget.value as any,
-          })
-        }
-      />
-      {!focusingInput && (
-        <IconButton
-          icon={<DeleteIcon />}
-          className={chatStyle["context-delete-button"]}
-          onClick={() => props.remove()}
-          bordered
+    <>
+      <div className={chatStyle["context-prompt-row"]}>
+        {!focusingInput && (
+          <>
+            <div className={chatStyle["context-drag"]}>
+              <DragIcon />
+            </div>
+            <Select
+              value={props.prompt.role}
+              className={chatStyle["context-role"]}
+              onChange={(e) =>
+                props.update({
+                  ...props.prompt,
+                  role: e.target.value as any,
+                })
+              }
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </Select>
+          </>
+        )}
+        <Input
+          value={getMessageTextContent(props.prompt)}
+          type="text"
+          className={chatStyle["context-content"]}
+          rows={focusingInput ? 5 : 1}
+          onFocus={() => setFocusingInput(true)}
+          onBlur={() => {
+            setFocusingInput(false);
+            // If the selection is not removed when the user loses focus, some
+            // extensions like "Translate" will always display a floating bar
+            window?.getSelection()?.removeAllRanges();
+          }}
+          onInput={(e) =>
+            props.update({
+              ...props.prompt,
+              content: e.currentTarget.value as any,
+            })
+          }
         />
-      )}
-    </div>
+        {!focusingInput && (
+          <IconButton
+            icon={<DeleteIcon />}
+            className={chatStyle["context-delete-button"]}
+            onClick={() => props.remove()}
+            bordered
+          />
+        )}
+      </div>
+      {reasoning ? (
+        <details
+          style={{
+            margin: "4px 0 12px 56px",
+            padding: "6px 10px",
+            borderRadius: 6,
+            background: "var(--gray)",
+            opacity: 0.85,
+            fontSize: 12,
+          }}
+        >
+          <summary style={{ cursor: "pointer", userSelect: "none" }}>
+            思考内容(只读,随消息保留)
+          </summary>
+          <pre
+            style={{
+              marginTop: 6,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              maxHeight: 240,
+              overflowY: "auto",
+              fontFamily: "inherit",
+            }}
+          >
+            {reasoning}
+          </pre>
+        </details>
+      ) : null}
+    </>
   );
 }
 
