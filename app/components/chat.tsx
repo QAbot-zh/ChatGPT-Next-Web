@@ -2426,6 +2426,9 @@ function DualModelView(props: {
   secondaryTreeSession?: ChatSession;
   onActivateTreeNode?: (messageId: string, isSecondary?: boolean) => void;
   onDeleteTreeNode?: (messageId: string, isSecondary?: boolean) => void;
+  onClearErrorTreeNodes?: (isSecondary?: boolean) => void;
+  primaryErrorCount?: number;
+  secondaryErrorCount?: number;
   navigatorViewMode: ChatNavigatorViewMode;
   onNavigatorViewModeChange: (viewMode: ChatNavigatorViewMode) => void;
   onScrollBothToBottom?: (fn: (instant?: boolean) => void) => void; // 注册滚动到底部的回调
@@ -2693,6 +2696,12 @@ function DualModelView(props: {
             onDeleteTreeNode={(messageId) => {
               props.onDeleteTreeNode?.(messageId, false);
             }}
+            onClearErrorTreeNodes={
+              props.onClearErrorTreeNodes
+                ? () => props.onClearErrorTreeNodes?.(false)
+                : undefined
+            }
+            errorNodeCount={props.primaryErrorCount}
             inPanel
           />
         </div>
@@ -2785,6 +2794,12 @@ function DualModelView(props: {
             onDeleteTreeNode={(messageId) => {
               props.onDeleteTreeNode?.(messageId, true);
             }}
+            onClearErrorTreeNodes={
+              props.onClearErrorTreeNodes
+                ? () => props.onClearErrorTreeNodes?.(true)
+                : undefined
+            }
+            errorNodeCount={props.secondaryErrorCount}
             inPanel
           />
         </div>
@@ -2801,6 +2816,8 @@ function ChatNavigator(props: {
   treeSession?: ChatSession;
   onActivateTreeNode?: (messageId: string) => void;
   onDeleteTreeNode?: (messageId: string) => void;
+  onClearErrorTreeNodes?: () => void;
+  errorNodeCount?: number;
   viewMode?: ChatNavigatorViewMode;
   onViewModeChange?: (viewMode: ChatNavigatorViewMode) => void;
   inPanel?: boolean; // 是否在双模型 panel 内
@@ -3116,6 +3133,22 @@ function ChatNavigator(props: {
           <span className={styles["chat-navigator-title"]}>
             {Locale.Chat.Navigator.Title}
           </span>
+          {props.onClearErrorTreeNodes && (props.errorNodeCount ?? 0) > 0 && (
+            <button
+              type="button"
+              className={styles["chat-navigator-clear-errors"]}
+              onClick={props.onClearErrorTreeNodes}
+              title={Locale.Chat.Navigator.ClearErrors(props.errorNodeCount!)}
+              aria-label={Locale.Chat.Navigator.ClearErrors(
+                props.errorNodeCount!,
+              )}
+            >
+              <EraserIcon />
+              <span className={styles["chat-navigator-clear-errors-count"]}>
+                {props.errorNodeCount}
+              </span>
+            </button>
+          )}
           <button
             type="button"
             className={styles["chat-navigator-close"]}
@@ -4237,6 +4270,69 @@ function ChatComponent() {
   const onDelete = (msgId: string) => {
     deleteMessage(msgId);
   };
+
+  const onClearErrorMessages = async (isSecondary: boolean) => {
+    const tree = isSecondary
+      ? session.secondaryMessageTree
+      : session.messageTree;
+    const flat = isSecondary
+      ? session.secondaryMessages ?? []
+      : session.messages;
+
+    const errorIds =
+      session.enableMessageTree && tree
+        ? Object.values(tree)
+            .filter((m) => m.isError)
+            .map((m) => m.id)
+        : flat.filter((m) => m.isError).map((m) => m.id);
+
+    if (errorIds.length === 0) return;
+
+    const confirmed = await showConfirm(
+      Locale.Chat.Navigator.ClearErrorsConfirm(errorIds.length),
+    );
+    if (!confirmed) return;
+
+    chatStore.updateTargetSession(session, (session) => {
+      if (session.enableMessageTree) {
+        errorIds.forEach((id) =>
+          removeMessageFromTree(
+            session,
+            id,
+            isSecondary ? "secondary" : "primary",
+          ),
+        );
+      } else if (isSecondary) {
+        session.secondaryMessages = (session.secondaryMessages ?? []).filter(
+          (m) => !m.isError,
+        );
+        rebuildMessageTreeFromMessages(session, "secondary");
+      } else {
+        session.messages = session.messages.filter((m) => !m.isError);
+        rebuildMessageTreeFromMessages(session);
+      }
+    });
+  };
+
+  const primaryErrorCount = useMemo(() => {
+    if (session.enableMessageTree && session.messageTree) {
+      return Object.values(session.messageTree).filter((m) => m.isError).length;
+    }
+    return session.messages.filter((m) => m.isError).length;
+  }, [session.enableMessageTree, session.messageTree, session.messages]);
+
+  const secondaryErrorCount = useMemo(() => {
+    if (session.enableMessageTree && session.secondaryMessageTree) {
+      return Object.values(session.secondaryMessageTree).filter(
+        (m) => m.isError,
+      ).length;
+    }
+    return (session.secondaryMessages ?? []).filter((m) => m.isError).length;
+  }, [
+    session.enableMessageTree,
+    session.secondaryMessageTree,
+    session.secondaryMessages,
+  ]);
 
   const onBreak = (msgId: string) => {
     chatStore.updateTargetSession(session, (session) => {
@@ -6309,6 +6405,11 @@ function ChatComponent() {
               }
               onDelete(messageId);
             }}
+            onClearErrorTreeNodes={(isSecondary) =>
+              onClearErrorMessages(!!isSecondary)
+            }
+            primaryErrorCount={primaryErrorCount}
+            secondaryErrorCount={secondaryErrorCount}
             navigatorViewMode={navigatorViewMode}
             onNavigatorViewModeChange={setNavigatorViewMode}
             onScrollBothToBottom={(fn) => {
@@ -7267,6 +7368,8 @@ function ChatComponent() {
               });
             }}
             onDeleteTreeNode={onDelete}
+            onClearErrorTreeNodes={() => onClearErrorMessages(false)}
+            errorNodeCount={primaryErrorCount}
           />
         )}
       </div>

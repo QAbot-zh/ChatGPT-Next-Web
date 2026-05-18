@@ -1957,6 +1957,37 @@
   }
 }
 
+.chat-navigator-clear-errors {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(231, 76, 60, 0.12);
+  color: #e74c3c;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+
+  &:hover {
+    background: rgba(231, 76, 60, 0.2);
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.chat-navigator-clear-errors-count {
+  font-weight: 600;
+  font-size: 11px;
+  min-width: 14px;
+  text-align: center;
+}
+
 .chat-navigator-search-input {
   width: 104px;
   padding: 5px 10px;

@@ -328,6 +328,9 @@ const en: LocaleType = {
       EmptyMessage: "(Empty message)",
       User: "User",
       Assistant: "Assistant",
+      ClearErrors: (count: number) => `Clear all error nodes (${count})`,
+      ClearErrorsConfirm: (count: number) =>
+        `Clear all ${count} error nodes? This cannot be undone.`,
     },
     MessageTree: {
       Enable: "Enable branched chat",

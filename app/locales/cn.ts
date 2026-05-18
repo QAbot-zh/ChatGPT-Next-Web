@@ -307,6 +307,9 @@ const cn = {
       EmptyMessage: "(空消息)",
       User: "用户",
       Assistant: "助手",
+      ClearErrors: (count: number) => `清除全部错误节点 (${count})`,
+      ClearErrorsConfirm: (count: number) =>
+        `确认清除全部 ${count} 个错误节点？此操作不可撤销。`,
     },
     MessageTree: {
       Enable: "开启树形会话",
