@@ -248,7 +248,8 @@ export class ClaudeApi implements LLMApi {
 
               context.text = responseTexts.join("\n\n");
 
-              return finish();
+              context.finished = true;
+              throw new Error(context.text);
             }
           },
           onmessage(msg) {

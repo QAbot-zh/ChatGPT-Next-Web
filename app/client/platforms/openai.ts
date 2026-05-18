@@ -721,7 +721,8 @@ export class ChatGPTApi implements LLMApi {
 
               responseText = responseTexts.join("\n\n");
 
-              return finish();
+              finished = true;
+              throw new Error(responseText);
             }
           },
           onmessage(msg) {
